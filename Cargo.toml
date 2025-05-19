@@ -1,0 +1,10 @@
+[package]
+name = "halation"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mcp4725 = "0.4.2"
+mavlink = "0.12.2"
+rppal = "0.22.1"
+tokio = { version = "1", features = ["full"] }
