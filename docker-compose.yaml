@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  halation:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: halation_dev
+    volumes:
+      - .:/workspace
+      - halation_build:/workspace/build
+      - halation_install:/workspace/install
+    network_mode: host
+    privileged: true 
+    devices:
+      - /dev:/dev 
+    environment:
+      - DISPLAY=${DISPLAY}
+      - ROS_DOMAIN_ID=67 # six seven
+    stdin_open: true
+    tty: true
+    command: bash
+
+volumes:
+  halation_build:
+  halation_install:
