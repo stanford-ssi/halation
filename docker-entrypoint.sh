@@ -1,8 +1,10 @@
 #!/bin/bash
 set -e
 
-# for non-interactive mode commands
+# start sshd
+/usr/sbin/sshd
 
+# setup ros for non-interactive mode commands
 source /opt/ros/${ROS_DISTRO}/setup.bash
 if [ -f /workspace/install/setup.bash ]; then
     source /workspace/install/setup.bash

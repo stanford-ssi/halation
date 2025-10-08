@@ -13,9 +13,15 @@ RUN apt-get update && apt-get install -y \
     vim \
     wget \
     curl \
+    openssh-server \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
+
+RUN mkdir /var/run/sshd
+COPY ./sshd_override.conf /etc/ssh/sshd_config.d/override.conf
+RUN echo 'root:thispasswordissecure' | chpasswd
+EXPOSE 2267
 
 RUN rosdep update
 

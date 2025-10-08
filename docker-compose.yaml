@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   halation:
@@ -11,9 +11,9 @@ services:
       - halation_build:/workspace/build
       - halation_install:/workspace/install
     network_mode: host
-    privileged: true 
+    privileged: true
     devices:
-      - /dev:/dev 
+      - /dev:/dev
     environment:
       - DISPLAY=${DISPLAY}
       - ROS_DOMAIN_ID=67 # six seven

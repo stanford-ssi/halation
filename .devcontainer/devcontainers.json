@@ -1,0 +1,17 @@
+{
+  "name": "ROS Workspace",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "halation",
+  "workspaceFolder": "/workspace",
+  "remoteUser": "root",
+  "settings": {
+    "python.defaultInterpreterPath": "/usr/bin/python3",
+    "terminal.integrated.shell.linux": "/bin/bash"
+  },
+  "extensions": [
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-iot.vscode-ros",
+    "mhutchie.git-graph"
+  ]
+}
