@@ -18,3 +18,7 @@ __pycache__/
 # colcon custom files
 COLCON_IGNORE
 AMENT_IGNORE
+
+# web station
+node_modules/
+.next/
