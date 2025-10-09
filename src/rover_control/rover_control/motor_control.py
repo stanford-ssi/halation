@@ -27,8 +27,7 @@ class MotorControl(Node):
         self.create_timer(1.0 / VOLTAGE_RAMP_RATE, self.ramp_voltage)
 
     def handle_target_voltage(self, msg):
-        converted_val = (msg.data / REAL_VOLTAGE) * VOLTAGE_MAX
-        self.target_dac_val = converted_val
+        self.target_dac_val = int((msg.data / REAL_VOLTAGE) * VOLTAGE_MAX)
         self.get_logger().info(f"Target voltage set to {self.target_dac_val}")
 
     def ramp_voltage(self):
