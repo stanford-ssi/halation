@@ -1,7 +1,7 @@
 "use client";
 
 import ROSLIB from "roslib";
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export type MotorCommand = "forwards" | "stop" | "backwards";
 
@@ -9,25 +9,43 @@ interface MotorControlProps {
   ros: ROSLIB.Ros | null;
   isConnected: boolean;
   publishMessage: <T>(topicName: string, message: T) => void;
+  subscribeToTopic: (
+    topicName: string,
+    callback: (msg: unknown) => void,
+  ) => void;
 }
 
-export function MotorControl({ ros, isConnected, publishMessage }: MotorControlProps) {
+export function MotorControl({
+  ros,
+  isConnected,
+  publishMessage,
+  subscribeToTopic,
+}: MotorControlProps) {
+  const [voltage, setVoltage] = useState(0);
+
+  useEffect(() => {
+    if (!ros) return;
+    subscribeToTopic("/voltage", (msg: unknown) => {
+      console.log("Voltage:", msg);
+      setVoltage((msg as { data: number }).data);
+    });
+  }, [ros, subscribeToTopic]);
+
   const publishMotorCommand = useCallback(
     (command: MotorCommand): void => {
       if (!ros) {
         console.error("ROS not connected");
         return;
       }
-
       publishMessage("/motor_command", { command });
     },
     [ros, publishMessage],
   );
 
-
   return (
     <div className="mb-6">
       <h2 className="text-lg font-semibold mb-4">Motor Control</h2>
+      Current voltage: {voltage}V
       <div className="flex gap-4">
         <button
           onClick={() => publishMotorCommand("forwards")}

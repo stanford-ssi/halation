@@ -3,13 +3,13 @@
 import { useRos } from "@/hooks/useRos";
 import { MotorControl } from "@/components/MotorControl";
 
-function TopicChip({ 
-  topic, 
-  isSubscribed, 
-  onToggle 
-}: { 
-  topic: string; 
-  isSubscribed: boolean; 
+function TopicChip({
+  topic,
+  isSubscribed,
+  onToggle,
+}: {
+  topic: string;
+  isSubscribed: boolean;
   onToggle: (topic: string) => void;
 }) {
   return (
@@ -45,7 +45,17 @@ function LogEntry({
 }
 
 export default function Home() {
-  const { topics, logs, isConnected, ros, publishMessage, subscribedTopics, toggleTopicSubscription, clearLogs } = useRos(100);
+  const {
+    topics,
+    loggingTopics,
+    logs,
+    isConnected,
+    ros,
+    publishMessage,
+    subscribeToTopic,
+    toggleTopicLogging,
+    clearLogs,
+  } = useRos(100);
 
   return (
     <div className="p-4">
@@ -62,17 +72,22 @@ export default function Home() {
         </h2>
         <div className="flex flex-wrap gap-2">
           {topics.map((topic) => (
-            <TopicChip 
-              key={topic} 
-              topic={topic} 
-              isSubscribed={subscribedTopics.includes(topic)}
-              onToggle={toggleTopicSubscription}
+            <TopicChip
+              key={topic}
+              topic={topic}
+              isSubscribed={loggingTopics.includes(topic)}
+              onToggle={toggleTopicLogging}
             />
           ))}
         </div>
       </div>
 
-      <MotorControl ros={ros} isConnected={isConnected} publishMessage={publishMessage} />
+      <MotorControl
+        ros={ros}
+        isConnected={isConnected}
+        publishMessage={publishMessage}
+        subscribeToTopic={subscribeToTopic}
+      />
 
       <div className="mb-4">
         <div className="flex justify-between items-center">
