@@ -31,3 +31,4 @@ To rebuild the docker image, run `docker-compose up --build -d`
 
 ### TODO:
 - Figure out proper configuration for enviroment variables
+- How to do shutdowns
