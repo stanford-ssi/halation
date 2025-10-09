@@ -3,13 +3,6 @@ import { useEffect, useRef, useState, useCallback } from "react";
 
 const ROS_BRIDGE_URL = "wss://ssirovers.org/ws";
 
-// Type definitions
-export type MotorCommand = "forwards" | "stop" | "backwards";
-
-export interface MotorControlMessage {
-  command: MotorCommand;
-}
-
 export interface LogEntry {
   topic: string;
   message: unknown;
@@ -20,11 +13,11 @@ export interface UseRosReturn {
   ros: ROSLIB.Ros | null;
   topics: string[];
   logs: LogEntry[];
+  clearLogs: () => void;  
   isConnected: boolean;
-  subscribeToTopic: (topicName: string, ros: ROSLIB.Ros) => void;
-  unsubscribeFromTopic: (topicName: string) => void;
+  subscribedTopics: string[];
   publishMessage: <T>(topicName: string, message: T) => void;
-  publishMotorCommand: (command: MotorCommand) => void;
+  toggleTopicSubscription: (topicName: string) => void;
 }
 
 export function useRos(maxLogSize: number = 100): UseRosReturn {
@@ -33,6 +26,7 @@ export function useRos(maxLogSize: number = 100): UseRosReturn {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const subscribersRef = useRef<Map<string, ROSLIB.Topic>>(new Map());
   const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [subscribedTopics, setSubscribedTopics] = useState<string[]>([]);
 
   const logMessage = useCallback(
     (topic: string, message: unknown): void => {
@@ -43,6 +37,11 @@ export function useRos(maxLogSize: number = 100): UseRosReturn {
     },
     [maxLogSize],
   );
+
+  const clearLogs = useCallback(() => {
+    setLogs([]);
+  }, []);
+
 
   const subscribeToTopic = useCallback(
     (topicName: string, ros: ROSLIB.Ros) => {
@@ -67,6 +66,7 @@ export function useRos(maxLogSize: number = 100): UseRosReturn {
         });
 
         subscribersRef.current.set(topicName, topic);
+        setSubscribedTopics(prev => [...prev, topicName]);
         console.log(`Subscribed to topic: ${topicName}`);
       });
     },
@@ -78,6 +78,7 @@ export function useRos(maxLogSize: number = 100): UseRosReturn {
     if (topic) {
       topic.unsubscribe();
       subscribersRef.current.delete(topicName);
+      setSubscribedTopics(prev => prev.filter(t => t !== topicName));
       console.log(`Unsubscribed from topic: ${topicName}`);
     }
   }, []);
@@ -105,12 +106,21 @@ export function useRos(maxLogSize: number = 100): UseRosReturn {
     [],
   );
 
-  const publishMotorCommand = useCallback(
-    (command: MotorCommand): void => {
-      const motorMessage: MotorControlMessage = { command };
-      publishMessage("/motor_control", motorMessage);
+
+  const toggleTopicSubscription = useCallback(
+    (topicName: string): void => {
+      if (!rosRef.current) {
+        console.error("ROS not connected");
+        return;
+      }
+
+      if (subscribersRef.current.has(topicName)) {
+        unsubscribeFromTopic(topicName);
+      } else {
+        subscribeToTopic(topicName, rosRef.current);
+      }
     },
-    [publishMessage],
+    [subscribeToTopic, unsubscribeFromTopic],
   );
 
   useEffect(() => {
@@ -128,9 +138,7 @@ export function useRos(maxLogSize: number = 100): UseRosReturn {
         setTopics(result.topics);
         console.log("Available topics:", result.topics);
 
-        result.topics.forEach((topicName) => {
-          subscribeToTopic(topicName, ros);
-        });
+        toggleTopicSubscription("/ping");
       });
     };
 
@@ -147,10 +155,6 @@ export function useRos(maxLogSize: number = 100): UseRosReturn {
     const handleTopicChange = () => {
       ros.getTopics((result) => {
         setTopics(result.topics);
-
-        result.topics.forEach((topicName) => {
-          subscribeToTopic(topicName, ros);
-        });
       });
     };
 
@@ -165,7 +169,7 @@ export function useRos(maxLogSize: number = 100): UseRosReturn {
       ros.removeListener("close", handleClose);
       ros.removeListener("topic", handleTopicChange);
     };
-  }, [logMessage, subscribeToTopic]);
+  }, [logMessage, toggleTopicSubscription]);
 
   useEffect(() => {
     const subscribers = subscribersRef.current;
@@ -181,10 +185,10 @@ export function useRos(maxLogSize: number = 100): UseRosReturn {
     ros: rosRef.current,
     topics,
     logs,
+    clearLogs,
     isConnected,
-    subscribeToTopic,
-    unsubscribeFromTopic,
+    subscribedTopics,
     publishMessage,
-    publishMotorCommand,
+    toggleTopicSubscription,
   };
 }

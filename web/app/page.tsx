@@ -1,12 +1,28 @@
 "use client";
 
-import { useRos, MotorCommand } from "@/hooks/useRos";
+import { useRos } from "@/hooks/useRos";
+import { MotorControl } from "@/components/MotorControl";
 
-function TopicChip({ topic }: { topic: string }) {
+function TopicChip({ 
+  topic, 
+  isSubscribed, 
+  onToggle 
+}: { 
+  topic: string; 
+  isSubscribed: boolean; 
+  onToggle: (topic: string) => void;
+}) {
   return (
-    <div className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+    <button
+      onClick={() => onToggle(topic)}
+      className={`px-3 py-1 rounded-full text-sm font-medium transition-colors cursor-pointer ${
+        isSubscribed
+          ? "bg-blue-500 text-white hover:bg-blue-600"
+          : "bg-white text-black"
+      }`}
+    >
       {topic}
-    </div>
+    </button>
   );
 }
 
@@ -29,11 +45,7 @@ function LogEntry({
 }
 
 export default function Home() {
-  const { topics, logs, isConnected, publishMotorCommand } = useRos(100);
-
-  const handleMotorCommand = (command: MotorCommand): void => {
-    publishMotorCommand(command);
-  };
+  const { topics, logs, isConnected, ros, publishMessage, subscribedTopics, toggleTopicSubscription, clearLogs } = useRos(100);
 
   return (
     <div className="p-4">
@@ -50,42 +62,31 @@ export default function Home() {
         </h2>
         <div className="flex flex-wrap gap-2">
           {topics.map((topic) => (
-            <TopicChip key={topic} topic={topic} />
+            <TopicChip 
+              key={topic} 
+              topic={topic} 
+              isSubscribed={subscribedTopics.includes(topic)}
+              onToggle={toggleTopicSubscription}
+            />
           ))}
         </div>
       </div>
 
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold mb-4">Motor Control</h2>
-        <div className="flex gap-4">
-          <button
-            onClick={() => handleMotorCommand("forwards")}
-            disabled={!isConnected}
-            className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
-          >
-            Forwards
-          </button>
-          <button
-            onClick={() => handleMotorCommand("stop")}
-            disabled={!isConnected}
-            className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
-          >
-            Stop
-          </button>
-          <button
-            onClick={() => handleMotorCommand("backwards")}
-            disabled={!isConnected}
-            className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
-          >
-            Backwards
-          </button>
-        </div>
-      </div>
+      <MotorControl ros={ros} isConnected={isConnected} publishMessage={publishMessage} />
 
       <div className="mb-4">
-        <h2 className="text-lg font-semibold mb-2">
-          Live Logs ({logs.length} messages)
-        </h2>
+        <div className="flex justify-between items-center">
+          <h2 className="text-lg font-semibold mb-2">
+            Live Logs ({logs.length} messages)
+          </h2>
+
+          <button
+            onClick={() => clearLogs()}
+            className="px-3 py-1 rounded-full text-sm font-medium transition-colors cursor-pointer bg-red-100 text-red-800 hover:bg-red-200"
+          >
+            Clear Logs
+          </button>
+        </div>
         <div className="bg-gray-100 rounded p-4 max-h-96 overflow-y-auto">
           {logs.length === 0 ? (
             <div className="text-gray-500">
