@@ -28,7 +28,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'rover_bringup = rover_bringup.node:main',
+            'rover_bringup = rover_bringup.initialize:main',
         ],
     },
 )
