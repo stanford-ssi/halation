@@ -1,6 +1,7 @@
-import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32, String
+import json
+import rclpy
 
 class MotorInterface(Node):
     def __init__(self):
@@ -15,17 +16,20 @@ class MotorInterface(Node):
         )
 
     def handle_motor_command(self, msg):
-        command = msg.data.lower().strip()
-        self.get_logger().info(f"Received motor command: {command}")
-        
-        if command == "forwards":
-            self.set_voltage(1.0)
-        elif command == "backwards":
-            self.set_voltage(-1.0)
-        elif command == "stop":
-            self.set_voltage(0.0)
-        else:
-            self.get_logger().warn(f"Unknown motor command: {command}")
+        try:
+            command = json.loads(msg.data)["command"]
+            self.get_logger().info(f"Received motor command: {command}")
+            
+            if command == "forwards":
+                self.set_voltage(1.0)
+            elif command == "backwards":
+                self.set_voltage(-1.0)
+            elif command == "stop":
+                self.set_voltage(0.0)
+            else:
+                self.get_logger().warn(f"Unknown motor command: {command}")
+        except json.JSONDecodeError:
+            self.get_logger().warn(f"Invalid motor command: {msg.data}")
 
     def set_voltage(self, voltage):
         self.target_voltage = voltage

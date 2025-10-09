@@ -3,12 +3,7 @@
 import ROSLIB from "roslib";
 import { useCallback } from "react";
 
-// Type definitions
 export type MotorCommand = "forwards" | "stop" | "backwards";
-
-export interface MotorControlMessage {
-  command: MotorCommand;
-}
 
 interface MotorControlProps {
   ros: ROSLIB.Ros | null;
@@ -24,38 +19,34 @@ export function MotorControl({ ros, isConnected, publishMessage }: MotorControlP
         return;
       }
 
-      const motorMessage: MotorControlMessage = { command };
-      publishMessage("/motor_command", motorMessage);
+      publishMessage("/motor_command", { command });
     },
     [ros, publishMessage],
   );
 
-  const handleMotorCommand = (command: MotorCommand): void => {
-    publishMotorCommand(command);
-  };
 
   return (
     <div className="mb-6">
       <h2 className="text-lg font-semibold mb-4">Motor Control</h2>
       <div className="flex gap-4">
         <button
-          onClick={() => handleMotorCommand("forwards")}
+          onClick={() => publishMotorCommand("forwards")}
           disabled={!isConnected}
-          className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+          className="px-3 py-1 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-400"
         >
           Forwards
         </button>
         <button
-          onClick={() => handleMotorCommand("stop")}
+          onClick={() => publishMotorCommand("stop")}
           disabled={!isConnected}
-          className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+          className="px-3 py-1 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-400"
         >
           Stop
         </button>
         <button
-          onClick={() => handleMotorCommand("backwards")}
+          onClick={() => publishMotorCommand("backwards")}
           disabled={!isConnected}
-          className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+          className="px-3 py-1 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-400"
         >
           Backwards
         </button>
