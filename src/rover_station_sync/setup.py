@@ -1,8 +1,6 @@
 from setuptools import find_packages, setup
-import os
-from glob import glob
 
-package_name = 'rover_bringup'
+package_name = 'rover_station_sync'
 
 setup(
     name=package_name,
@@ -12,14 +10,17 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        (os.path.join('share', package_name), glob('launch/*launch.py')),
-        (os.path.join('share', package_name, 'config'), glob('config/*')),
     ],
-    install_requires=['setuptools'],
+    install_requires=[
+        'setuptools',
+        'fastapi',
+        'uvicorn',
+        'fastapi-proxy-lib',
+    ],
     zip_safe=True,
     maintainer='Hinson Chan',
     maintainer_email='hinson@stanford.edu',
-    description='Rover bringup',
+    description='package for bidirectional communication between rover and station',
     license='MIT',
     extras_require={
         'test': [
@@ -28,7 +29,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'rover_bringup = rover_bringup.node:main',
+            'fastapi_proxy_node = rover_station_sync.proxy_node:main',
         ],
     },
 )

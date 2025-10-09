@@ -14,14 +14,24 @@ RUN apt-get update && apt-get install -y \
     wget \
     curl \
     openssh-server \
+    # ros deps
+    ros-${ROS_DISTRO}-rosbridge-server \
     && rm -rf /var/lib/apt/lists/*
+
 
 WORKDIR /workspace
 
 RUN mkdir /var/run/sshd
 COPY ./sshd_override.conf /etc/ssh/sshd_config.d/override.conf
 RUN echo 'root:thispasswordissecure' | chpasswd
+EXPOSE 9095
 EXPOSE 2267
+
+# python deps
+RUN pip install uv
+COPY uvsync.sh /workspace/uvsync.sh
+RUN chmod +x /workspace/uvsync.sh
+RUN /workspace/uvsync.sh
 
 RUN rosdep update
 
