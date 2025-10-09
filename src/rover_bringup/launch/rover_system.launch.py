@@ -1,11 +1,7 @@
 from launch import LaunchDescription
-from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from pathlib import Path
-
 
 def generate_launch_description():
-
     return LaunchDescription([
         Node(
             package='rover_bringup',
@@ -18,6 +14,7 @@ def generate_launch_description():
             executable='rosbridge_websocket',
             name='rosbridge_websocket',
             output='screen',
+            parameters=[{ 'port': 9095  }],
         ),
         Node(
             package='rover_station_sync',

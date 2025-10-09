@@ -9,7 +9,7 @@ class FastAPIProxyNode(Node):
     def __init__(self):
         super().__init__('fastapi_proxy_node')
         self.port = 6067
-        self.rosbridge_port = 9090
+        self.rosbridge_port = 9095
 
         self.get_logger().info(f"Station Sync Proxy Node @port={self.port}, @rosbridge_port={self.rosbridge_port}")
 
