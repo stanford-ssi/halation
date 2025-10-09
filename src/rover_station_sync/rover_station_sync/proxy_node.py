@@ -1,5 +1,6 @@
 from fastapi import FastAPI, WebSocket
-from fastapi_proxy_lib.fastapi.app import reverse_http_app
+from fastapi_proxy_lib.core.websocket import ReverseWebSocketProxy
+from httpx import AsyncClient
 from rclpy.node import Node
 import rclpy
 import threading
@@ -14,7 +15,11 @@ class FastAPIProxyNode(Node):
         self.get_logger().info(f"Station Sync Proxy Node @port={self.port}, @rosbridge_port={self.rosbridge_port}")
 
         app = FastAPI()
-        ws_proxy = reverse_http_app(base_url=f"ws://localhost:{self.rosbridge_port}/") # rosbridge_server
+
+        self.ws_proxy = ReverseWebSocketProxy(
+            client=AsyncClient(),
+            base_url=f"ws://localhost:{self.rosbridge_port}/"
+        )
 
         @app.get("/")
         async def root():
@@ -22,7 +27,8 @@ class FastAPIProxyNode(Node):
 
         @app.websocket("/ws")
         async def ws(websocket: WebSocket):
-            await ws_proxy.proxy(websocket)
+            await self.ws_proxy.proxy(websocket=websocket)
+            
 
         # run FastAPI in a separate thread so rclpy spin() is not blocked
         thread = threading.Thread(target=lambda: uvicorn.run(app, host="0.0.0.0", port=self.port, log_level="info"))

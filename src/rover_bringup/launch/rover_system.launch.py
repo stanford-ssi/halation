@@ -14,7 +14,7 @@ def generate_launch_description():
             executable='rosbridge_websocket',
             name='rosbridge_websocket',
             output='screen',
-            parameters=[{ 'port': 9095  }],
+            parameters=[{ 'port': 9095 }],
         ),
         Node(
             package='rover_station_sync',
