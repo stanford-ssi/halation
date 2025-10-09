@@ -22,4 +22,16 @@ def generate_launch_description():
             name='fastapi_proxy_node',
             output='screen',
         ),
+        Node(
+            package='rover_control',
+            executable='motor_control',
+            name='motor_control',
+            output='screen',
+        ),
+        Node(
+            package='rover_control',
+            executable='motor_interface',
+            name='motor_interface',
+            output='screen',
+        ),
     ])
