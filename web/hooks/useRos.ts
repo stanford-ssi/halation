@@ -9,6 +9,9 @@ export function useRos() {
   useEffect(() => {
     rosRef.current.on("connection", () => {
       console.log("Connected to rosbridge!");
+      rosRef.current.getTopics((result) => {
+        console.log("Topics: ", result.topics);
+      });
     });
 
     rosRef.current.on("close", () => {
