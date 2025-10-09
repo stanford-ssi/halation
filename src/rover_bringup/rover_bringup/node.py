@@ -11,7 +11,6 @@ class RoverBringupNode(Node):
         self.timer = self.create_timer(PING_EVERY, self.ping)
     
     def ping(self):
-        self.get_logger().info("Ping")
         msg = String()
         now = self.get_clock().now().to_msg()
         msg.data = f"Ping {now.sec}"
