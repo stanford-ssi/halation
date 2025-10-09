@@ -8,7 +8,7 @@ PING_RATE = 0.1 # every n seconds
 REAL_VOLTAGE = 3.3
 VOLTAGE_MIN = -4095
 VOLTAGE_MAX = 4095
-RAMP_STEP = 0.1
+RAMP_STEP = 10
 
 class MotorControl(Node):
     def __init__(self):
