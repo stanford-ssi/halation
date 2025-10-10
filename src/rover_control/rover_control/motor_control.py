@@ -1,15 +1,30 @@
-import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32
+import adafruit_mcp4725
+import board
+import busio
+import rclpy
+import RPi.GPIO as GPIO
 
-VOLTAGE_RAMP_RATE = 100  # recalculations per second
+# i2c = busio.I2C(3,2)
+
+VOLTAGE_RAMP_RATE = 10  # recalculations per second
 PING_RATE = 0.1  # every n seconds
 
-REAL_VOLTAGE = 3.3
-VOLTAGE_MIN = -4095
-VOLTAGE_MAX = 4095
-RAMP_STEP = 10
+REAL_VOLTAGE = 3.3 # volts
+VOLTAGE_MIN = -4095 # dac value
+VOLTAGE_MAX = 4095 # dac value
+RAMP_STEP = 100
 
+SCL_PIN = 3
+SDA_PIN = 2
+I2C_ADDRESS = 0x60
+GPIO_CHANNEL = 26
+    
+i2c = busio.I2C(SCL_PIN, SDA_PIN)
+# GPIO.setwarnings(False)
+# GPIO.setmode(GPIO.BCM)
+# GPIO.setup(GPIO_CHANNEL, GPIO.OUT)
 
 class MotorControl(Node):
     def __init__(self):
@@ -17,7 +32,11 @@ class MotorControl(Node):
         self.dac_val = 0.0
         self.target_dac_val = 0.0
 
-        self.get_logger().info("Motor control initialized")
+        # i2c = busio.I2C(board.SCL, board.SDA)
+        self.dac = adafruit_mcp4725.MCP4725(i2c, address=I2C_ADDRESS)
+        # GPIO.output(GPIO_CHANNEL, GPIO.HIGH)
+
+        self.get_logger().info(f"Motor control initialized with I2C address {self.dac.address}, {board.SCL}, {board.SDA}")
 
         self.voltage_publisher = self.create_publisher(Float32, "voltage", 10)
         self.voltage_subscriber = self.create_subscription(
@@ -31,18 +50,30 @@ class MotorControl(Node):
         self.target_dac_val = int((msg.data / REAL_VOLTAGE) * VOLTAGE_MAX)
         self.get_logger().info(f"Target voltage set to {self.target_dac_val}")
 
+    def set_dac_val(self):
+        # direction = GPIO.HIGH if self.dac_val > 0 else GPIO.LOW
+        # GPIO.output(GPIO_CHANNEL, direction) 
+        self.dac.raw_value = abs(self.dac_val)
+
     def ramp_voltage(self):
         if abs(self.dac_val - self.target_dac_val) < 0.01:
             return
 
         dac_val = self.dac_val + \
             (RAMP_STEP if self.dac_val < self.target_dac_val else - RAMP_STEP)
+
         self.dac_val = max(min(dac_val, VOLTAGE_MAX), VOLTAGE_MIN)
+        self.set_dac_val() 
+
 
     def ping_voltage(self):
         ping_val = (self.dac_val / abs(VOLTAGE_MAX)) * REAL_VOLTAGE
         ping_val = round(ping_val, 2)
         self.voltage_publisher.publish(Float32(data=ping_val))
+
+    def __del__(self):
+        # GPIO.cleanup()
+        pass
 
 
 def main(args=None):
