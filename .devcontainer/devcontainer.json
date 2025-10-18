@@ -1,6 +1,6 @@
 {
   "name": "ROS Workspace",
-  "dockerComposeFile": "../docker-compose.yml",
+  "dockerComposeFile": "../docker-compose.yaml",
   "service": "halation",
   "workspaceFolder": "/workspace",
   "remoteUser": "root",
