@@ -29,6 +29,7 @@ EXPOSE 2267
 
 # python deps
 RUN pip install uv
+COPY pyproject.toml uv.lock /workspace/
 COPY uvsync.sh /workspace/uvsync.sh
 RUN chmod +x /workspace/uvsync.sh
 RUN /workspace/uvsync.sh
