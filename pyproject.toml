@@ -10,6 +10,7 @@ dependencies = [
     "board>=1.0",
     "fastapi>=0.118.2",
     "fastapi-proxy-lib>=0.3.0",
+    "jetson-gpio>=2.1.12",
     "rpi-gpio>=0.7.1",
     "uvicorn>=0.37.0",
 ]

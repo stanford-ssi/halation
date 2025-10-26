@@ -282,6 +282,12 @@ wheels = [
 ]
 
 [[package]]
+name = "jetson-gpio"
+version = "2.1.12"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/74/5e/a40eaa9f4f79182b1e3a97059fbaeab4ee567639188fc00d352f3a129751/jetson_gpio-2.1.12.tar.gz", hash = "sha256:43110ba2e3bbf747bfe65ef2cc442cee91bdea8924e946bc64ec55b67f9eb948", size = 37412, upload-time = "2025-09-30T16:02:50.571Z" }
+
+[[package]]
 name = "pydantic"
 version = "2.12.0"
 source = { registry = "https://pypi.org/simple" }
@@ -527,6 +533,7 @@ dependencies = [
     { name = "board" },
     { name = "fastapi" },
     { name = "fastapi-proxy-lib" },
+    { name = "jetson-gpio" },
     { name = "rpi-gpio" },
     { name = "uvicorn" },
 ]
@@ -538,6 +545,7 @@ requires-dist = [
     { name = "board", specifier = ">=1.0" },
     { name = "fastapi", specifier = ">=0.118.2" },
     { name = "fastapi-proxy-lib", specifier = ">=0.3.0" },
+    { name = "jetson-gpio", specifier = ">=2.1.12" },
     { name = "rpi-gpio", specifier = ">=0.7.1" },
     { name = "uvicorn", specifier = ">=0.37.0" },
 ]

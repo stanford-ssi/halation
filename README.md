@@ -30,10 +30,11 @@ To rebuild the docker image, run `docker-compose up --build -d`
 - Disregard the `.venv/`, ros itself has it's own types and deps we need.
 
 ### TODO:
-- Figure out proper configuration for enviroment variables
+- Figure out proper configuration for environment variables
 - How to do shutdowns
 
 
-Functional Groups
-- Jack: Autopilot + Lider/Cameras/
-- Hinson: Power + Design
+### On old Ubuntu versions/Jetson
+`docker compose up -d`
+`docker compose exec halation bash`
+
