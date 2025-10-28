@@ -8,7 +8,11 @@ services:
       - .:/workspace
       - halation_build:/workspace/build
       - halation_install:/workspace/install
-    network_mode: host
+    # network_mode: host does NOT work on Docker Desktop for Windows/Mac
+    # Must use explicit port mappings instead
+    ports:
+      - "9095:9095"   # ROSBridge WebSocket
+      - "6067:6067"   # FastAPI Proxy
     privileged: true
     devices:
       - /dev:/dev
