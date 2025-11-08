@@ -25,6 +25,11 @@ To rebuild the docker image, run `docker-compose up --build -d`
 ### Execution
 - `ros2 launch rover_bringup rover_system.launch.py`
 
+### LIDAR / Object Avoidance / Rerouting Execution
+- ROS package for object avoidance/rerouting using LIDAR is contained within src/avoidance_rerouting
+- Launch using: ros2 run avoidance_rerouting mock_lidar_publisher (this starts a node that sends mock LIDAR signals to /scan)
+- To visualize LIDAR outputs, run: ros2 launch foxglove_bridge foxglove_bridge_launch.xml, then go to https://app.foxglove.dev/ssi-halation/dashboard (ask Hiroki to be invited to dashboard) and open up ws://localhost:8765 on Foxglove. 
+
 ### Dependencies
 - We use `uv` to manage the python dependencies, but NOT for project running. That is, `uv add` and `./uvsync.sh`.
 - Disregard the `.venv/`, ros itself has it's own types and deps we need.
