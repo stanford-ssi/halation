@@ -2,6 +2,7 @@
 
 import { useRos } from "@/hooks/useRos";
 import { MotorControl } from "@/components/MotorControl";
+import { UsageMonitor } from "@/components/UsageMonitor";
 
 function TopicChip({
   topic,
@@ -81,6 +82,8 @@ export default function Home() {
           ))}
         </div>
       </div>
+
+      <UsageMonitor ros={ros} isConnected={isConnected} topics={topics} />
 
       <MotorControl
         ros={ros}

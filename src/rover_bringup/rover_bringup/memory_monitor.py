@@ -9,7 +9,7 @@ from ros2node.api import get_node_names
 class MemoryMonitor(Node):
     def __init__(self):
         super().__init__('memory_monitor')
-        self.pub = self.create_publisher(String, '/memory', 10)
+        self.pub = self.create_publisher(String, '/usage', 10)
         self.create_timer(2.0, self.publish_memory)
 
         for proc in psutil.process_iter():
