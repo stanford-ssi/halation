@@ -120,8 +120,8 @@ export function UsageChart({
                 if (active && payload && payload.length) {
                   const dataPoint = payload[0].payload as UsageDataPoint;
                   const allProcesses = [
-                    ...dataPoint.nodes,
-                    ...dataPoint.unmatched,
+                    ...(dataPoint.nodes || []),
+                    ...(dataPoint.unmatched || []),
                   ].sort((a, b) => b.cpu_percent - a.cpu_percent);
 
                   return (
@@ -240,8 +240,8 @@ export function UsageChart({
                 if (active && payload && payload.length) {
                   const dataPoint = payload[0].payload as UsageDataPoint;
                   const allProcesses = [
-                    ...dataPoint.nodes,
-                    ...dataPoint.unmatched,
+                    ...(dataPoint.nodes || []),
+                    ...(dataPoint.unmatched || []),
                   ].sort((a, b) => b.memory_mb - a.memory_mb);
 
                   return (
