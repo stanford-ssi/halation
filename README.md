@@ -26,7 +26,7 @@ To rebuild the docker image, run `docker-compose up --build -d`
 - `ros2 launch rover_bringup rover_system.launch.py`
 
 ### SSHing into the system
-- Install `cloudflared` (`brew install cloudflared` for Macs, follow [https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/](.deb package) + `dpkg -i ...deb` for Linux) 
+- Install `cloudflared` (`brew install cloudflared` for Macs, follow [.deb package](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/) + `dpkg -i ...deb` for Linux) 
 - Follow `ssh-keygen` instructions to generate ssh key (give to Hinson)
 - Paste this in your `~/.ssh/config`
   ```
