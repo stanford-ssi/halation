@@ -25,6 +25,17 @@ To rebuild the docker image, run `docker-compose up --build -d`
 ### Execution
 - `ros2 launch rover_bringup rover_system.launch.py`
 
+### SSHing into the system
+- Install `cloudflared` (`brew install cloudflared` for Macs, follow [https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/](.deb package) + `dpkg -i ...deb` for Linux) 
+- Follow `ssh-keygen` instructions to generate ssh key (give to Hinson)
+- Paste this in your `~/.ssh/config`
+  ```
+  Host jetson.ssirovers.org
+      ProxyCommand cloudflared access ssh --hostname %h
+      User jetson
+  ```
+- Run `ssh jetson.ssirovers.org`
+
 ### LIDAR / Object Avoidance / Rerouting Execution
 - ROS package for object avoidance/rerouting using LIDAR is contained within src/avoidance_rerouting
 - Launch using: ros2 run avoidance_rerouting mock_lidar_publisher (this starts a node that sends mock LIDAR signals to /scan)
