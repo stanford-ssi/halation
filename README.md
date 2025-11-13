@@ -41,6 +41,10 @@ To rebuild the docker image, run `docker-compose up --build -d`
 - Launch using: ros2 run avoidance_rerouting mock_lidar_publisher (this starts a node that sends mock LIDAR signals to /scan)
 - To visualize LIDAR outputs, run: ros2 launch foxglove_bridge foxglove_bridge_launch.xml, then go to https://app.foxglove.dev/ssi-halation/dashboard (ask Hiroki to be invited to dashboard) and open up ws://localhost:8765 on Foxglove. 
 
+#### External ROS2 Packages related to LIDAR / Object Avoidance / Rerouting Execution
+- laser_segmentation: Convert raw LIDAR data to object segementation "https://github.com/ajtudela/laser_segmentation"
+- slg_msgs: Dependency of laser_segmentation, used to process laser data "https://github.com/ajtudela/laser_segmentation"
+
 ### Dependencies
 - We use `uv` to manage the python dependencies, but NOT for project running. That is, `uv add` and `./uvsync.sh`.
 - Disregard the `.venv/`, ros itself has it's own types and deps we need.
@@ -48,7 +52,6 @@ To rebuild the docker image, run `docker-compose up --build -d`
 ### TODO:
 - Figure out proper configuration for environment variables
 - How to do shutdowns
-
 
 ### On old Ubuntu versions/Jetson
 `docker compose up -d`
