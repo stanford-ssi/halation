@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'mock_lidar_publisher = avoidance_rerouting.mock_lidar_publisher:main',
+            'lidar_detection = avoidance_rerouting.lidar_detection:main',
         ],
     },
 )
