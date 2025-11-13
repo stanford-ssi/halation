@@ -14,8 +14,8 @@ RUN apt-get update && apt-get install -y \
     wget \
     curl \
     openssh-server \
-    ros-humble-foxglove-bridge \
     # ros deps
+    ros-humble-foxglove-bridge \ 
     ros-${ROS_DISTRO}-rosbridge-server \
     && rm -rf /var/lib/apt/lists/*
 
