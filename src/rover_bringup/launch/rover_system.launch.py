@@ -34,4 +34,10 @@ def generate_launch_description():
             name='motor_interface',
             output='screen',
         ),
+        Node(
+            package='rover_bringup',
+            executable='memory_monitor',
+            name='memory_monitor',
+            output='screen',
+        ),
     ])

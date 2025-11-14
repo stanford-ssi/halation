@@ -29,6 +29,7 @@ setup(
     entry_points={
         'console_scripts': [
             'rover_bringup = rover_bringup.initialize:main',
+            'memory_monitor = rover_bringup.memory_monitor:main',
         ],
     },
 )
