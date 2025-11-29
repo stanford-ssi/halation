@@ -5,10 +5,10 @@
     name="mock_lidar_publisher"
     output="screen"/>
 
-  <node
-    pkg="avoidance_rerouting"
-    exec="lidar_detection"
-    name="lidar_detection"
+  <node 
+    pkg="avoidance_rerouting" 
+    exec="rerouting" 
+    name="rerouting_node" 
     output="screen"/>
 
   <node

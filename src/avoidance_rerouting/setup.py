@@ -27,7 +27,7 @@ setup(
         'console_scripts': [
             'mock_lidar_publisher = avoidance_rerouting.mock_lidar_publisher:main',
             'lidar_detection = avoidance_rerouting.lidar_detection:main',
-            'rerouting_node = avoidance_rerouting.rerouting_node:main',
+            'rerouting = avoidance_rerouting.rerouting:main',
         ],
     },
 )
