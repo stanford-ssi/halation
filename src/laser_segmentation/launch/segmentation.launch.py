@@ -88,7 +88,7 @@ def generate_launch_description():
     return LaunchDescription([
         declare_params_file_arg,
         declare_log_level_arg,
-        # register_event_handler_for_node_reaches_inactive_state,
-        # emit_event_to_request_that_node_does_configure_transition,
+        register_event_handler_for_node_reaches_inactive_state,
+        emit_event_to_request_that_node_does_configure_transition,
         segmentation_node
     ])
