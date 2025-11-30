@@ -4,9 +4,7 @@ import adafruit_mcp4725
 import board
 import busio
 import rclpy
-import RPi.GPIO as GPIO
-
-# i2c = busio.I2C(3,2)
+import Jetson.GPIO as GPIO
 
 VOLTAGE_RAMP_RATE = 10  # recalculations per second
 PING_RATE = 0.1  # every n seconds
@@ -16,15 +14,9 @@ VOLTAGE_MIN = -4095 # dac value
 VOLTAGE_MAX = 4095 # dac value
 RAMP_STEP = 100
 
-SCL_PIN = 3
-SDA_PIN = 2
 I2C_ADDRESS = 0x60
-GPIO_CHANNEL = 26
-    
-i2c = busio.I2C(SCL_PIN, SDA_PIN)
-# GPIO.setwarnings(False)
-# GPIO.setmode(GPIO.BCM)
-# GPIO.setup(GPIO_CHANNEL, GPIO.OUT)
+
+i2c = busio.I2C(board.SCL, board.SDA)
 
 class MotorControl(Node):
     def __init__(self):
@@ -36,7 +28,7 @@ class MotorControl(Node):
         self.dac = adafruit_mcp4725.MCP4725(i2c, address=I2C_ADDRESS)
         # GPIO.output(GPIO_CHANNEL, GPIO.HIGH)
 
-        self.get_logger().info(f"Motor control initialized with I2C address {self.dac.address}, {board.SCL}, {board.SDA}")
+        self.get_logger().info(f"Motor control initialized with I2C address {I2C_ADDRESS}, {board.SCL}, {board.SDA}")
 
         self.voltage_publisher = self.create_publisher(Float32, "voltage", 10)
         self.voltage_subscriber = self.create_subscription(
@@ -53,7 +45,8 @@ class MotorControl(Node):
     def set_dac_val(self):
         # direction = GPIO.HIGH if self.dac_val > 0 else GPIO.LOW
         # GPIO.output(GPIO_CHANNEL, direction) 
-        self.dac.raw_value = abs(self.dac_val)
+        print(f"Setting to: {int(abs(self.dac_val))} {type(self.dac_val)}")
+        self.dac.raw_value = int(abs(self.dac_val))
 
     def ramp_voltage(self):
         if abs(self.dac_val - self.target_dac_val) < 0.01:
