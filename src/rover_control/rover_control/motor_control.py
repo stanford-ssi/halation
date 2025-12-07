@@ -6,8 +6,7 @@ import busio
 import rclpy
 import Jetson.GPIO as GPIO
 
-VOLTAGE_RAMP_RATE = 10  # recalculations per second
-PING_RATE = 0.1  # every n seconds
+PING_RATE = 1  # every n seconds
 
 REAL_VOLTAGE = 5 # volts
 VOLTAGE_MAX = 4095 # dac value
@@ -24,15 +23,31 @@ GPIO.output(DIRECTION_CHANNEL, GPIO.HIGH)
 class MotorControl(Node):
     def __init__(self):
         super().__init__("motor_control")
+
+        self.declare_parameter("target_topic", "")
+        self.declare_parameter("inverted", 0)
+        self.declare_parameter("output_topic", "")
+        self.declare_parameter("velocity_channel", -1)
+        self.declare_parameter("direction_channel", -1)
+
+        target_topic = self.get_parameter("target_topic").value
+        output_topic = self.get_parameter("output_topic").value
+        self.velocity_channel = int(self.get_parameter("velocity_channel").value)
+        self.direction_channel = int(self.get_parameter("direction_channel").value)
+        inverted = int(self.get_parameter("inverted").value) == 1
+
+        if target_topic == "": raise ValueError("target_topic is not set")
+        if output_topic == "": raise ValueError("output_topic is not set")
+        if self.velocity_channel == -1: raise ValueError("velocity_channel is not set")
+        if self.direction_channel == -1: raise ValueError("direction_channel is not set")
+
         self.dac_val = 0.0
 
         self.dac = adafruit_dacx578.DACx578(i2c, address=I2C_ADDRESS)
         self.get_logger().info(f"Motor control initialized with I2C address {I2C_ADDRESS}, {board.SCL}, {board.SDA}")
 
-        self.voltage_publisher = self.create_publisher(Float32, "voltage", 10)
-        self.voltage_subscriber = self.create_subscription(
-            Float32, "target_voltage", self.handle_target_voltage, 10
-        )
+        self.voltage_publisher = self.create_publisher(Float32, output_topic, 10)
+        self.voltage_subscriber = self.create_subscription(Float32, target_topic, self.handle_target_voltage, 10)
 
         self.create_timer(PING_RATE, self.ping_voltage)
 
@@ -48,7 +63,7 @@ class MotorControl(Node):
     def set_dac_val(self):
         self.get_logger().info(f"Setting to: {int(abs(self.dac_val))}")
         self.get_logger().info(f'Direction should be: {"HIGH" if self.dac_val >= 0 else "LOW"}')
-        self.dac.channels[0].raw_value = int(abs(self.dac_val))
+        self.dac.channels[self.velocity_channel].raw_value = int(abs(self.dac_val))
         direction = GPIO.HIGH if self.dac_val >= 0 else GPIO.LOW
         GPIO.output(DIRECTION_CHANNEL, direction) 
 
