@@ -3,6 +3,7 @@ from std_msgs.msg import String
 import adafruit_dacx578
 import board
 import busio
+import json
 import rclpy
 
 # Constant speed setting (0.0 to 1.0)
@@ -98,7 +99,12 @@ class MotorControl(Node):
 
     def handle_command(self, msg: String):
         """Handle incoming motor commands."""
-        command = msg.data.lower()
+        try:
+            data = json.loads(msg.data)
+            command = data.get("data", "").lower()
+        except json.JSONDecodeError:
+            return self.get_logger().warn(f"Invalid JSON: {msg.data}")
+        
         self.get_logger().info(f"Received command: {command}")
 
         if command == "forwards":
