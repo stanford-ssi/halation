@@ -58,7 +58,7 @@ class MotorControl(Node):
         self.dac.channels[motor["speed_channel"]].raw_value = dac_value
         
         # Set direction via DAC channel (4096 = high/forward, 0 = low/backward)
-        direction_value = 4096 if actual_forward else 0
+        direction_value = VOLTAGE_MAX if actual_forward else 0
         self.dac.channels[motor["direction_channel"]].raw_value = direction_value
         
         self.get_logger().debug(f"{motor_name}: speed={dac_value}, forward={actual_forward}")
