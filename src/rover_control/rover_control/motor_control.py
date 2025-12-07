@@ -1,81 +1,118 @@
 from rclpy.node import Node
-from std_msgs.msg import Float32
+from std_msgs.msg import String
 import adafruit_dacx578
 import board
 import busio
 import rclpy
-import Jetson.GPIO as GPIO
 
-PING_RATE = 1  # every n seconds
+# Constant speed setting (0.0 to 1.0)
+DRIVE_SPEED = 0.5
 
-REAL_VOLTAGE = 5 # volts
-VOLTAGE_MAX = 4095 # dac value
+VOLTAGE_MAX = 4095  # DAC max value for speed
 
 I2C_ADDRESS = 0x4c
 
-# print("PINS", { k: list(GPIO.gpio_pin_data.get_data()[-1]["TEGRA_SOC"].keys())[i] for i, k in enumerate(GPIO.gpio_pin_data.get_data()[-1]["BOARD"])})
-DIRECTION_CHANNEL = "GP167" # board pin 7
+# Motor channel configuration
+# Left side: motors 1 & 3 (channels 0,1 and 4,5)
+# Right side: motors 2 & 4 (channels 2,3 and 6,7)
+MOTORS = {
+    "left_front": {"speed_channel": 0, "direction_channel": 1, "inverted": False},
+    "right_front": {"speed_channel": 2, "direction_channel": 3, "inverted": True},
+    "left_back": {"speed_channel": 4, "direction_channel": 5, "inverted": False},
+    "right_back": {"speed_channel": 6, "direction_channel": 7, "inverted": True},
+}
 
 i2c = busio.I2C(board.SCL, board.SDA)
-GPIO.setup(DIRECTION_CHANNEL, GPIO.OUT)
-GPIO.output(DIRECTION_CHANNEL, GPIO.HIGH)
+
 
 class MotorControl(Node):
     def __init__(self):
         super().__init__("motor_control")
 
-        self.declare_parameter("target_topic", "")
-        self.declare_parameter("inverted", 0)
-        self.declare_parameter("output_topic", "")
-        self.declare_parameter("velocity_channel", -1)
-        self.declare_parameter("direction_channel", -1)
-
-        target_topic = self.get_parameter("target_topic").value
-        output_topic = self.get_parameter("output_topic").value
-        self.velocity_channel = int(self.get_parameter("velocity_channel").value)
-        self.direction_channel = int(self.get_parameter("direction_channel").value)
-        inverted = int(self.get_parameter("inverted").value) == 1
-
-        if target_topic == "": raise ValueError("target_topic is not set")
-        if output_topic == "": raise ValueError("output_topic is not set")
-        if self.velocity_channel == -1: raise ValueError("velocity_channel is not set")
-        if self.direction_channel == -1: raise ValueError("direction_channel is not set")
-
-        self.dac_val = 0.0
-
         self.dac = adafruit_dacx578.DACx578(i2c, address=I2C_ADDRESS)
-        self.get_logger().info(f"Motor control initialized with I2C address {I2C_ADDRESS}, {board.SCL}, {board.SDA}")
+        self.get_logger().info(f"Motor control initialized with I2C address {I2C_ADDRESS}")
 
-        self.voltage_publisher = self.create_publisher(Float32, output_topic, 10)
-        self.voltage_subscriber = self.create_subscription(Float32, target_topic, self.handle_target_voltage, 10)
+        self.command_subscriber = self.create_subscription(
+            String, "/motor_command", self.handle_command, 10
+        )
 
-        self.create_timer(PING_RATE, self.ping_voltage)
+        # Stop all motors on startup
+        self.stop_all()
 
-    def handle_target_voltage(self, msg):
-        target_dac = int((msg.data / REAL_VOLTAGE) * VOLTAGE_MAX)
-        self.get_logger().info(f"Target voltage set to {target_dac}")
+    def set_motor(self, motor_name: str, speed: float, forward: bool):
+        """Set a motor's speed and direction.
         
-        if abs(self.dac_val - target_dac) < 0.01:
-            return
-        self.dac_val = max(min(target_dac, VOLTAGE_MAX), -VOLTAGE_MAX)
-        self.set_dac_val() 
+        Args:
+            motor_name: Key from MOTORS dict
+            speed: 0.0 to 1.0
+            forward: True for forward, False for backward
+        """
+        motor = MOTORS[motor_name]
+        
+        # Apply inversion if needed
+        actual_forward = forward if not motor["inverted"] else not forward
+        
+        # Set speed via DAC
+        dac_value = int(speed * VOLTAGE_MAX)
+        self.dac.channels[motor["speed_channel"]].raw_value = dac_value
+        
+        # Set direction via DAC channel (4096 = high/forward, 0 = low/backward)
+        direction_value = 4096 if actual_forward else 0
+        self.dac.channels[motor["direction_channel"]].raw_value = direction_value
+        
+        self.get_logger().debug(f"{motor_name}: speed={dac_value}, forward={actual_forward}")
 
-    def set_dac_val(self):
-        self.get_logger().info(f"Setting to: {int(abs(self.dac_val))}")
-        self.get_logger().info(f'Direction should be: {"HIGH" if self.dac_val >= 0 else "LOW"}')
-        self.dac.channels[self.velocity_channel].raw_value = int(abs(self.dac_val))
-        direction = GPIO.HIGH if self.dac_val >= 0 else GPIO.LOW
-        GPIO.output(DIRECTION_CHANNEL, direction) 
+    def stop_all(self):
+        """Stop all motors."""
+        for motor_name in MOTORS:
+            self.set_motor(motor_name, 0.0, True)
+        self.get_logger().info("All motors stopped")
 
+    def drive_forward(self):
+        """Drive all motors forward."""
+        for motor_name in MOTORS:
+            self.set_motor(motor_name, DRIVE_SPEED, True)
+        self.get_logger().info("Driving forward")
 
-    def ping_voltage(self):
-        ping_val = (self.dac_val / abs(VOLTAGE_MAX)) * REAL_VOLTAGE
-        ping_val = round(ping_val, 2)
-        self.voltage_publisher.publish(Float32(data=ping_val))
+    def drive_backward(self):
+        """Drive all motors backward."""
+        for motor_name in MOTORS:
+            self.set_motor(motor_name, DRIVE_SPEED, False)
+        self.get_logger().info("Driving backward")
 
-    def __del__(self):
-        GPIO.cleanup()
-        pass
+    def turn_left(self):
+        """Turn left: right motors forward, left motors backward."""
+        self.set_motor("left_front", DRIVE_SPEED, False)
+        self.set_motor("left_back", DRIVE_SPEED, False)
+        self.set_motor("right_front", DRIVE_SPEED, True)
+        self.set_motor("right_back", DRIVE_SPEED, True)
+        self.get_logger().info("Turning left")
+
+    def turn_right(self):
+        """Turn right: left motors forward, right motors backward."""
+        self.set_motor("left_front", DRIVE_SPEED, True)
+        self.set_motor("left_back", DRIVE_SPEED, True)
+        self.set_motor("right_front", DRIVE_SPEED, False)
+        self.set_motor("right_back", DRIVE_SPEED, False)
+        self.get_logger().info("Turning right")
+
+    def handle_command(self, msg: String):
+        """Handle incoming motor commands."""
+        command = msg.data.lower()
+        self.get_logger().info(f"Received command: {command}")
+
+        if command == "forwards":
+            self.drive_forward()
+        elif command == "backwards":
+            self.drive_backward()
+        elif command == "left":
+            self.turn_left()
+        elif command == "right":
+            self.turn_right()
+        elif command == "stop":
+            self.stop_all()
+        else:
+            self.get_logger().warn(f"Unknown command: {command}")
 
 
 def main(args=None):
@@ -84,4 +121,3 @@ def main(args=None):
     rclpy.spin(motor_node)
     motor_node.destroy_node()
     rclpy.shutdown()
-

@@ -28,10 +28,4 @@ def generate_launch_description():
             name='motor_control',
             output='screen',
         ),
-        Node(
-            package='rover_control',
-            executable='motor_interface',
-            name='motor_interface',
-            output='screen',
-        ),
     ])

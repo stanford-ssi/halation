@@ -86,7 +86,6 @@ export default function Home() {
         ros={ros}
         isConnected={isConnected}
         publishMessage={publishMessage}
-        subscribeToTopic={subscribeToTopic}
       />
 
       <div className="mb-4">
