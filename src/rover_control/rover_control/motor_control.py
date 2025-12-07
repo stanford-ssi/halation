@@ -26,7 +26,7 @@ class MotorControl(Node):
         super().__init__("motor_control")
         self.dac_val = 0.0
 
-        self.dac = adafruit_dacx578.MCP4725(i2c, address=I2C_ADDRESS)
+        self.dac = adafruit_dacx578.DACx578(i2c, address=I2C_ADDRESS)
         self.get_logger().info(f"Motor control initialized with I2C address {I2C_ADDRESS}, {board.SCL}, {board.SDA}")
 
         self.voltage_publisher = self.create_publisher(Float32, "voltage", 10)
