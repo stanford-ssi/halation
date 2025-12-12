@@ -17,6 +17,7 @@ export function MotorControl({
   const [isDragging, setIsDragging] = useState(false);
   const [knobPosition, setKnobPosition] = useState({ x: 0, y: 0 });
   const [vector, setVector] = useState({ x: 0, y: 0 });
+  const [isLocked, setIsLocked] = useState(false);
   const baseRef = useRef<HTMLDivElement>(null);
 
   const JOYSTICK_RADIUS = 80;
@@ -25,7 +26,6 @@ export function MotorControl({
   const sendVector = useCallback(
     (x: number, y: number): void => {
       if (!ros || !isConnected) return;
-      // Send as JSON with x, y normalized to -1 to 1
       publishMessage("/motor_vector", { data: JSON.stringify({ x, y }) });
     },
     [ros, isConnected, publishMessage],
@@ -33,11 +33,11 @@ export function MotorControl({
 
   const sendEstop = useCallback((): void => {
     if (!ros) return;
-    // Send estop regardless of connection state for safety
     publishMessage("/motor_estop", { data: "estop" });
     setVector({ x: 0, y: 0 });
     setKnobPosition({ x: 0, y: 0 });
     setIsDragging(false);
+    setIsLocked(false);
   }, [ros, publishMessage]);
 
   const handleMove = useCallback(
@@ -51,7 +51,6 @@ export function MotorControl({
       let x = clientX - centerX;
       let y = clientY - centerY;
 
-      // Clamp to circle
       const distance = Math.sqrt(x * x + y * y);
       const maxDistance = JOYSTICK_RADIUS - KNOB_RADIUS / 2;
       if (distance > maxDistance) {
@@ -61,11 +60,9 @@ export function MotorControl({
 
       setKnobPosition({ x, y });
 
-      // Normalize to -1 to 1 range (y is inverted: up = positive)
       const normalizedX = x / maxDistance;
       const normalizedY = -y / maxDistance;
 
-      // Round to 2 decimal places to reduce message spam
       const roundedX = Math.round(normalizedX * 100) / 100;
       const roundedY = Math.round(normalizedY * 100) / 100;
 
@@ -79,12 +76,15 @@ export function MotorControl({
 
   const handleRelease = useCallback(() => {
     setIsDragging(false);
-    setKnobPosition({ x: 0, y: 0 });
-    if (vector.x !== 0 || vector.y !== 0) {
-      setVector({ x: 0, y: 0 });
-      sendVector(0, 0);
+    // Only snap back if not locked
+    if (!isLocked) {
+      setKnobPosition({ x: 0, y: 0 });
+      if (vector.x !== 0 || vector.y !== 0) {
+        setVector({ x: 0, y: 0 });
+        sendVector(0, 0);
+      }
     }
-  }, [vector, sendVector]);
+  }, [vector, sendVector, isLocked]);
 
   useEffect(() => {
     if (!isDragging) return;
@@ -110,7 +110,6 @@ export function MotorControl({
 
   const handleStart = (clientX: number, clientY: number) => {
     setIsDragging(true);
-    // Immediately process position
     if (baseRef.current) {
       const rect = baseRef.current.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
@@ -145,7 +144,9 @@ export function MotorControl({
         {/* Joystick */}
         <div
           ref={baseRef}
-          className="relative rounded-full bg-gradient-to-b from-slate-700 to-slate-800 border-4 border-slate-600 cursor-pointer select-none touch-none shadow-inner"
+          className={`relative rounded-full bg-gradient-to-b from-slate-700 to-slate-800 border-4 cursor-pointer select-none touch-none shadow-inner ${
+            isLocked ? "border-amber-500" : "border-slate-600"
+          }`}
           style={{
             width: JOYSTICK_RADIUS * 2,
             height: JOYSTICK_RADIUS * 2,
@@ -182,23 +183,41 @@ export function MotorControl({
         {/* Vector display */}
         <div className="text-center font-mono text-sm bg-slate-800 px-4 py-2 rounded-lg">
           <span className="text-slate-400">X: </span>
-          <span className="text-sky-400 w-16 inline-block">
+          <span className="text-sky-400 inline-block">
             {vector.x.toFixed(2)}
           </span>
           <span className="text-slate-600 mx-2">|</span>
           <span className="text-slate-400">Y: </span>
-          <span className="text-emerald-400 w-16 inline-block">
+          <span className="text-emerald-400 inline-block">
             {vector.y.toFixed(2)}
           </span>
         </div>
 
-        {/* E-STOP Button */}
-        <button
-          onClick={sendEstop}
-          className="p-2 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-bold text-xl rounded-lg shadow-lg border-2 border-red-500 transition-all active:scale-95"
-        >
-          E-STOP
-        </button>
+        {/* Lock + E-STOP Buttons */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setIsLocked(!isLocked);
+              if (isLocked) {
+                setVector({ x: 0, y: 0 });
+                setKnobPosition({ x: 0, y: 0 });
+              }
+            }}
+            className={`px-4 py-2 font-bold rounded-lg transition-all ${
+              isLocked
+                ? "bg-amber-500 text-white"
+                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+            }`}
+          >
+            {isLocked ? "LOCKED" : "LOCK"}
+          </button>
+          <button
+            onClick={sendEstop}
+            className="px-4 py-2 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-bold rounded-lg shadow-lg border-2 border-red-500 transition-all active:scale-95"
+          >
+            E-STOP
+          </button>
+        </div>
 
         {/* Connection status */}
         <div className="flex items-center gap-2 text-xs">
