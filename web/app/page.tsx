@@ -2,6 +2,7 @@
 
 import { useRos } from "@/hooks/useRos";
 import { MotorControl } from "@/components/MotorControl";
+import { useEffect, useState } from "react";
 
 function TopicChip({
   topic,
@@ -57,6 +58,20 @@ export default function Home() {
     clearLogs,
   } = useRos(100);
 
+  const [seconds, setSeconds] = useState<number>(0.0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // get the seconds from the current time
+      const currentTime = new Date();
+      const currentSeconds = currentTime.getSeconds();
+      const currentMilliseconds = currentTime.getMilliseconds() / 1000;
+      const roundedMilliseconds = Math.round(currentMilliseconds * 10) / 10;
+      setSeconds(currentSeconds + roundedMilliseconds);
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">
@@ -65,6 +80,8 @@ export default function Home() {
           {isConnected ? "Connected" : "Disconnected"}
         </span>
       </h1>
+
+      <div>{seconds}</div>
 
       <div className="mb-6">
         <h2 className="text-lg font-semibold mb-2">
