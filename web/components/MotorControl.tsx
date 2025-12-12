@@ -201,6 +201,7 @@ export function MotorControl({
               if (isLocked) {
                 setVector({ x: 0, y: 0 });
                 setKnobPosition({ x: 0, y: 0 });
+                sendVector(0, 0);
               }
             }}
             className={`px-4 py-2 font-bold rounded-lg transition-all ${
