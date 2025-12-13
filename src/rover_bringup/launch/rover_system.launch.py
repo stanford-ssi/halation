@@ -10,6 +10,12 @@ def generate_launch_description():
             output='screen',
         ),
         Node(
+            package='rover_bringup',
+            executable='memory_monitor',
+            name='memory_monitor',
+            output='screen',
+        ),
+        Node(
             package='rosbridge_server',
             executable='rosbridge_websocket',
             name='rosbridge_websocket',

@@ -2,7 +2,7 @@
 
 import { useRos } from "@/hooks/useRos";
 import { MotorControl } from "@/components/MotorControl";
-import { useEffect, useState } from "react";
+import { UsageMonitor } from "@/components/UsageMonitor";
 
 function TopicChip({
   topic,
@@ -53,7 +53,6 @@ export default function Home() {
     isConnected,
     ros,
     publishMessage,
-    subscribeToTopic,
     toggleTopicLogging,
     clearLogs,
   } = useRos(100);
@@ -88,6 +87,8 @@ export default function Home() {
         isConnected={isConnected}
         publishMessage={publishMessage}
       />
+
+      <UsageMonitor ros={ros} isConnected={isConnected} topics={topics} />
 
       <div className="mb-4">
         <div className="flex justify-between items-center">
