@@ -4,7 +4,7 @@ from rclpy.node import Node
 from std_msgs.msg import Float32
 import Jetson.GPIO as GPIO
 
-SERVO_PIN = 7
+SERVO_PIN = 33
 PWM_FREQ = 50
 
 
