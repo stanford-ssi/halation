@@ -82,6 +82,8 @@ export default function Home() {
         </div>
       </div>
 
+      <UsageMonitor ros={ros} isConnected={isConnected} topics={topics} />
+
       <MotorControl
         ros={ros}
         isConnected={isConnected}
