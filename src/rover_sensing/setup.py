@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'lidar_servo = rover_sensing.lidar_servo:main',
+            'pointcloud_accumulator = rover_sensing.pointcloud_accumulator:main',
         ],
     },
 )

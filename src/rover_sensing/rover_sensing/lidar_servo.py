@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
+from std_msgs.msg import Float32
 import Jetson.GPIO as GPIO
 
 SERVO_PIN = 33
 PWM_FREQ = 50
+
+# Pitch angle corresponding to duty cycle positions
+PITCH_LOW = 0.0   # duty_low = 0
+PITCH_HIGH = 20.0   # duty_high = 10
 
 
 class ServoDriver(Node):
@@ -20,6 +25,9 @@ class ServoDriver(Node):
         self.duty_high = 10
         self.current_high = False
 
+        # Publisher for current pitch angle (stamped via publish time)
+        self.angle_pub = self.create_publisher(Float32, 'lidar_pitch', 10)
+
         self.timer = self.create_timer(0.1, self.sweep_callback)
 
         self.get_logger().info("Servo Node Started. Sweeping up/down.")
@@ -27,9 +35,16 @@ class ServoDriver(Node):
     def sweep_callback(self):
         if self.current_high:
             self.pwm.ChangeDutyCycle(self.duty_low)
+            pitch = PITCH_LOW
         else:
             self.pwm.ChangeDutyCycle(self.duty_high)
+            pitch = PITCH_HIGH
         self.current_high = not self.current_high
+
+        # Publish pitch angle (timestamp is when message is published)
+        msg = Float32()
+        msg.data = pitch
+        self.angle_pub.publish(msg)
 
     def cleanup(self):
         self.pwm.stop()
