@@ -53,7 +53,6 @@ export default function Home() {
     isConnected,
     ros,
     publishMessage,
-    subscribeToTopic,
     toggleTopicLogging,
     clearLogs,
   } = useRos(100);
@@ -89,8 +88,9 @@ export default function Home() {
         ros={ros}
         isConnected={isConnected}
         publishMessage={publishMessage}
-        subscribeToTopic={subscribeToTopic}
       />
+
+      <UsageMonitor ros={ros} isConnected={isConnected} topics={topics} />
 
       <div className="mb-4">
         <div className="flex justify-between items-center">

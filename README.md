@@ -25,10 +25,28 @@ To rebuild the docker image, run `docker-compose up --build -d`
 ### Execution
 - `ros2 launch rover_bringup rover_system.launch.py`
 
+### SSHing into the system
+- Install `cloudflared` (`brew install cloudflared` for Macs, follow [.deb package](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/) + `dpkg -i ...deb` for Linux) 
+- Follow `ssh-keygen` instructions to generate ssh key (give to Hinson)
+- Paste this in your `~/.ssh/config`
+  ```
+  Host jetson.ssirovers.org
+      ProxyCommand cloudflared access ssh --hostname %h
+      User jetson
+  ```
+- Run `ssh jetson.ssirovers.org`
+
 ### LIDAR / Object Avoidance / Rerouting Execution
 - ROS package for object avoidance/rerouting using LIDAR is contained within src/avoidance_rerouting
-- Launch using: ros2 run avoidance_rerouting mock_lidar_publisher (this starts a node that sends mock LIDAR signals to /scan)
-- To visualize LIDAR outputs, run: ros2 launch foxglove_bridge foxglove_bridge_launch.xml, then go to https://app.foxglove.dev/ssi-halation/dashboard (ask Hiroki to be invited to dashboard) and open up ws://localhost:8765 on Foxglove. 
+- Launch using: ros2 launch avoidance_rerouting avoidance_system.launch.xml (this simultaneously starts mock LIDAR signal, detection, and Foxglove visualization nodes)
+- To visualize LIDAR outputs go to https://app.foxglove.dev/ssi-halation/dashboard (ask Hiroki to be invited to dashboard) and open up ws://localhost:8765 on Foxglove. 
+- If Foxglove shows error there is a high probability that the Foxglove port hasn't been closed. Run below code:
+  sudo lsof -i :8765 (8765 is the foxglove port)
+  kill -9 <PID of Foxglove port>
+
+#### External ROS2 Packages related to LIDAR / Object Avoidance / Rerouting Execution
+- laser_segmentation: Convert raw LIDAR data to object segementation "https://github.com/ajtudela/laser_segmentation"
+- slg_msgs: Dependency of laser_segmentation, used to process laser data "https://github.com/ajtudela/laser_segmentation"
 
 ### Dependencies
 - We use `uv` to manage the python dependencies, but NOT for project running. That is, `uv add` and `./uvsync.sh`.
@@ -37,7 +55,6 @@ To rebuild the docker image, run `docker-compose up --build -d`
 ### TODO:
 - Figure out proper configuration for environment variables
 - How to do shutdowns
-
 
 ### On old Ubuntu versions/Jetson
 `docker compose up -d`

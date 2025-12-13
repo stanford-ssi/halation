@@ -46,16 +46,16 @@ wheels = [
 ]
 
 [[package]]
-name = "adafruit-circuitpython-mcp4725"
-version = "1.4.18"
+name = "adafruit-circuitpython-dacx578"
+version = "1.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "adafruit-blinka" },
     { name = "adafruit-circuitpython-busdevice" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/86/7c/1e93dd207221cf7e4c874cab3f8195b9c4d5399d42f90652e917460ff12a/adafruit_circuitpython_mcp4725-1.4.18.tar.gz", hash = "sha256:d13b5d8358531f615e68b39eec6ddc87234862977c2452a4ef5b772283891a11", size = 23224, upload-time = "2025-06-17T16:20:01.53Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a8/b1/eb7c48686fb6407ba133c29798502b30866a0a68d4b1d9247bf9277f4dc2/adafruit_circuitpython_dacx578-1.0.1.tar.gz", hash = "sha256:12b5ed06977c2616b12e780181a0df445f91d8275b1d43672e08722039d7b19a", size = 24628, upload-time = "2025-10-20T16:39:24.274Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/77/93/923441c93bfc386656494a4a05031fe8942e8ce02f950d8d1b4ff3481173/adafruit_circuitpython_mcp4725-1.4.18-py3-none-any.whl", hash = "sha256:d3f46d3f41700a23bd3714474cf98739774202309d406f412c8cc81d688d7286", size = 5487, upload-time = "2025-06-17T16:19:57.322Z" },
+    { url = "https://files.pythonhosted.org/packages/08/62/a41ccbffb2e0c9c568b101552e4d2d109a5f7ec31c1b7164489fc6e5a1f7/adafruit_circuitpython_dacx578-1.0.1-py3-none-any.whl", hash = "sha256:0718ce4e150b702418eaf8158a68f8c058005ca5d78b01d902a18ea94351e1b4", size = 5936, upload-time = "2025-10-20T16:39:23.472Z" },
 ]
 
 [[package]]
@@ -529,7 +529,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "adafruit-blinka" },
-    { name = "adafruit-circuitpython-mcp4725" },
+    { name = "adafruit-circuitpython-dacx578" },
     { name = "board" },
     { name = "fastapi" },
     { name = "fastapi-proxy-lib" },
@@ -541,7 +541,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "adafruit-blinka", specifier = ">=8.66.2" },
-    { name = "adafruit-circuitpython-mcp4725", specifier = ">=1.4.18" },
+    { name = "adafruit-circuitpython-dacx578", specifier = ">=1.0.1" },
     { name = "board", specifier = ">=1.0" },
     { name = "fastapi", specifier = ">=0.118.2" },
     { name = "fastapi-proxy-lib", specifier = ">=0.3.0" },

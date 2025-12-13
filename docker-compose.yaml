@@ -13,6 +13,7 @@ services:
     ports:
       - "9095:9095"   # ROSBridge WebSocket
       - "6067:6067"   # FastAPI Proxy
+      - "8765:8765"   # ROS2 Foxglove Bridge
     privileged: true
     devices:
       - /dev:/dev

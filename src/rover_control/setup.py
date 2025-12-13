@@ -25,7 +25,6 @@ setup(
     entry_points={
         'console_scripts': [
             'motor_control = rover_control.motor_control:main',
-            'motor_interface = rover_control.motor_interface:main',
         ],
     },
 )

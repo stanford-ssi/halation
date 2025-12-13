@@ -1,0 +1,26 @@
+<launch>
+  <node
+    pkg="avoidance_rerouting"
+    exec="mock_lidar_publisher"
+    name="mock_lidar_publisher"
+    output="screen"/>
+
+  <node 
+    pkg="avoidance_rerouting" 
+    exec="rerouting" 
+    name="rerouting_node" 
+    output="screen"/>
+
+  <node
+    pkg="foxglove_bridge"
+    exec="foxglove_bridge"
+    name="foxglove_bridge"
+    output="screen">
+    <param name="port" value="8765"/>
+  </node>
+
+  <include file="$(find-pkg-share laser_segmentation)/launch/segmentation.launch.py">
+    <arg name="log_level" value="info"/>
+  </include>
+
+</launch>

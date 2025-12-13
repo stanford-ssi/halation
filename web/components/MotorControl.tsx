@@ -1,73 +1,236 @@
 "use client";
 
 import ROSLIB from "roslib";
-import { useCallback, useEffect, useState } from "react";
-
-export type MotorCommand = "forwards" | "stop" | "backwards";
+import { useCallback, useRef, useState, useEffect } from "react";
 
 interface MotorControlProps {
   ros: ROSLIB.Ros | null;
   isConnected: boolean;
   publishMessage: <T>(topicName: string, message: T) => void;
-  subscribeToTopic: (
-    topicName: string,
-    callback: (msg: unknown) => void,
-  ) => void;
 }
 
 export function MotorControl({
   ros,
   isConnected,
   publishMessage,
-  subscribeToTopic,
 }: MotorControlProps) {
-  const [voltage, setVoltage] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [knobPosition, setKnobPosition] = useState({ x: 0, y: 0 });
+  const [vector, setVector] = useState({ x: 0, y: 0 });
+  const [isLocked, setIsLocked] = useState(false);
+  const baseRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!ros) return;
-    subscribeToTopic("/voltage", (msg: unknown) => {
-      console.log("Voltage:", msg);
-      setVoltage((msg as { data: number }).data);
-    });
-  }, [ros, subscribeToTopic]);
+  const JOYSTICK_RADIUS = 80;
+  const KNOB_RADIUS = 28;
 
-  const publishMotorCommand = useCallback(
-    (command: MotorCommand): void => {
-      if (!ros) {
-        console.error("ROS not connected");
-        return;
-      }
-      publishMessage("/motor_command", { command });
+  const sendVector = useCallback(
+    (x: number, y: number): void => {
+      if (!ros || !isConnected) return;
+      publishMessage("/motor_vector", { data: JSON.stringify({ x, y }) });
     },
-    [ros, publishMessage],
+    [ros, isConnected, publishMessage],
   );
 
+  const sendEstop = useCallback((): void => {
+    if (!ros) return;
+    publishMessage("/motor_estop", { data: "estop" });
+    setVector({ x: 0, y: 0 });
+    setKnobPosition({ x: 0, y: 0 });
+    setIsDragging(false);
+    setIsLocked(false);
+  }, [ros, publishMessage]);
+
+  const handleMove = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!baseRef.current || !isDragging) return;
+
+      const rect = baseRef.current.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+
+      let x = clientX - centerX;
+      let y = clientY - centerY;
+
+      const distance = Math.sqrt(x * x + y * y);
+      const maxDistance = JOYSTICK_RADIUS - KNOB_RADIUS / 2;
+      if (distance > maxDistance) {
+        x = (x / distance) * maxDistance;
+        y = (y / distance) * maxDistance;
+      }
+
+      setKnobPosition({ x, y });
+
+      const normalizedX = x / maxDistance;
+      const normalizedY = -y / maxDistance;
+
+      const roundedX = Math.round(normalizedX * 100) / 100;
+      const roundedY = Math.round(normalizedY * 100) / 100;
+
+      if (roundedX !== vector.x || roundedY !== vector.y) {
+        setVector({ x: roundedX, y: roundedY });
+        sendVector(roundedX, roundedY);
+      }
+    },
+    [isDragging, vector, sendVector],
+  );
+
+  const handleRelease = useCallback(() => {
+    setIsDragging(false);
+    // Only snap back if not locked
+    if (!isLocked) {
+      setKnobPosition({ x: 0, y: 0 });
+      if (vector.x !== 0 || vector.y !== 0) {
+        setVector({ x: 0, y: 0 });
+        sendVector(0, 0);
+      }
+    }
+  }, [vector, sendVector, isLocked]);
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const onMouseMove = (e: MouseEvent) => handleMove(e.clientX, e.clientY);
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches[0]) handleMove(e.touches[0].clientX, e.touches[0].clientY);
+    };
+    const onEnd = () => handleRelease();
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onEnd);
+    window.addEventListener("touchmove", onTouchMove);
+    window.addEventListener("touchend", onEnd);
+
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onEnd);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onEnd);
+    };
+  }, [isDragging, handleMove, handleRelease]);
+
+  const handleStart = (clientX: number, clientY: number) => {
+    setIsDragging(true);
+    if (baseRef.current) {
+      const rect = baseRef.current.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+
+      let x = clientX - centerX;
+      let y = clientY - centerY;
+
+      const distance = Math.sqrt(x * x + y * y);
+      const maxDistance = JOYSTICK_RADIUS - KNOB_RADIUS / 2;
+      if (distance > maxDistance) {
+        x = (x / distance) * maxDistance;
+        y = (y / distance) * maxDistance;
+      }
+
+      setKnobPosition({ x, y });
+
+      const normalizedX = Math.round((x / maxDistance) * 100) / 100;
+      const normalizedY = Math.round((-y / maxDistance) * 100) / 100;
+      setVector({ x: normalizedX, y: normalizedY });
+      sendVector(normalizedX, normalizedY);
+    }
+  };
+
   return (
-    <div className="mb-6">
-      <h2 className="text-lg font-semibold mb-4">Motor Control</h2>
-      Current voltage: {voltage}V
-      <div className="flex gap-4">
-        <button
-          onClick={() => publishMotorCommand("forwards")}
-          disabled={!isConnected}
-          className="px-3 py-1 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-400"
+    <div className="p-6 bg-slate-900 rounded-xl border border-slate-700">
+      <h2 className="text-lg font-semibold mb-4 text-slate-100">
+        Motor Control
+      </h2>
+
+      <div className="flex flex-col items-center gap-5">
+        {/* Joystick */}
+        <div
+          ref={baseRef}
+          className={`relative rounded-full bg-gradient-to-b from-slate-700 to-slate-800 border-4 cursor-pointer select-none touch-none shadow-inner ${
+            isLocked ? "border-amber-500" : "border-slate-600"
+          }`}
+          style={{
+            width: JOYSTICK_RADIUS * 2,
+            height: JOYSTICK_RADIUS * 2,
+          }}
+          onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
+          onTouchStart={(e) => {
+            if (e.touches[0])
+              handleStart(e.touches[0].clientX, e.touches[0].clientY);
+          }}
         >
-          Forwards
-        </button>
-        <button
-          onClick={() => publishMotorCommand("stop")}
-          disabled={!isConnected}
-          className="px-3 py-1 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-400"
-        >
-          Stop
-        </button>
-        <button
-          onClick={() => publishMotorCommand("backwards")}
-          disabled={!isConnected}
-          className="px-3 py-1 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-400"
-        >
-          Backwards
-        </button>
+          {/* Crosshair lines */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="absolute w-full h-px bg-slate-600/50" />
+            <div className="absolute h-full w-px bg-slate-600/50" />
+          </div>
+
+          {/* Knob */}
+          <div
+            className={`absolute rounded-full shadow-xl border-2 transition-colors ${
+              isDragging
+                ? "bg-slate-400 border-slate-300"
+                : "bg-slate-500 border-slate-400 hover:bg-slate-400"
+            }`}
+            style={{
+              width: KNOB_RADIUS * 2,
+              height: KNOB_RADIUS * 2,
+              left: "50%",
+              top: "50%",
+              transform: `translate(calc(-50% + ${knobPosition.x}px), calc(-50% + ${knobPosition.y}px))`,
+            }}
+          />
+        </div>
+
+        {/* Vector display */}
+        <div className="text-center font-mono text-sm bg-slate-800 px-4 py-2 rounded-lg">
+          <span className="text-slate-400">X: </span>
+          <span className="text-sky-400 inline-block">
+            {vector.x.toFixed(2)}
+          </span>
+          <span className="text-slate-600 mx-2">|</span>
+          <span className="text-slate-400">Y: </span>
+          <span className="text-emerald-400 inline-block">
+            {vector.y.toFixed(2)}
+          </span>
+        </div>
+
+        {/* Lock + E-STOP Buttons */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setIsLocked(!isLocked);
+              if (isLocked) {
+                setVector({ x: 0, y: 0 });
+                setKnobPosition({ x: 0, y: 0 });
+                sendVector(0, 0);
+              }
+            }}
+            className={`px-4 py-2 font-bold rounded-lg transition-all ${
+              isLocked
+                ? "bg-amber-500 text-white"
+                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+            }`}
+          >
+            {isLocked ? "LOCKED" : "LOCK"}
+          </button>
+          <button
+            onClick={sendEstop}
+            className="px-4 py-2 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-bold rounded-lg shadow-lg border-2 border-red-500 transition-all active:scale-95"
+          >
+            E-STOP
+          </button>
+        </div>
+
+        {/* Connection status */}
+        <div className="flex items-center gap-2 text-xs">
+          <div
+            className={`w-2 h-2 rounded-full ${
+              isConnected ? "bg-emerald-500 animate-pulse" : "bg-red-500"
+            }`}
+          />
+          <span className="text-slate-400">
+            {isConnected ? "Connected" : "Disconnected"}
+          </span>
+        </div>
       </div>
     </div>
   );

@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "adafruit-blinka>=8.66.2",
-    "adafruit-circuitpython-mcp4725>=1.4.18",
+    "adafruit-circuitpython-dacx578>=1.0.1",
     "board>=1.0",
     "fastapi>=0.118.2",
     "fastapi-proxy-lib>=0.3.0",
