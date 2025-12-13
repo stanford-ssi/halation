@@ -4,7 +4,7 @@ package_name = 'rover_sensing'
 
 setup(
     name=package_name,
-    version='0.0.0',
+    version='0.0.1',
     packages=find_packages(exclude=['test']),
     data_files=[
         ('share/ament_index/resource_index/packages',
@@ -15,8 +15,8 @@ setup(
     zip_safe=True,
     maintainer='jetson',
     maintainer_email='hinson@stanford.edu',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='Rover sensing',
+    license='MIT',
     extras_require={
         'test': [
             'pytest',
@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'lidar_servo = rover_sensing.lidar_servo:main',
         ],
     },
 )
