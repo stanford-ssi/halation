@@ -15,7 +15,7 @@ class ServoDriver(Node):
         GPIO.setmode(GPIO.BOARD)
         GPIO.setup(SERVO_PIN, GPIO.OUT)
         self.pwm = GPIO.PWM(SERVO_PIN, PWM_FREQ)
-        self.pwm.start(0)
+        self.pwm.start(3.0)
 
         self.subscription = self.create_subscription(
             Float32, 'servo_angle', self.listener_callback, 10)
