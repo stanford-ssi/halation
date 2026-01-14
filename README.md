@@ -52,6 +52,16 @@ To rebuild the docker image, run `docker-compose up --build -d`
 - We use `uv` to manage the python dependencies, but NOT for project running. That is, `uv add` and `./uvsync.sh`.
 - Disregard the `.venv/`, ros itself has it's own types and deps we need.
 
+### Web Frontend
+The `web/` folder contains a Next.js app for visualizing rover data.
+
+1. `cd web`
+2. `npm install`
+3. `npm run dev`
+4. Open http://localhost:3000
+
+Make sure Docker and ROS nodes are running (`ros2 launch rover_bringup rover_system.launch.py`) for the web app to connect.
+
 ### TODO:
 - Figure out proper configuration for environment variables
 - How to do shutdowns
