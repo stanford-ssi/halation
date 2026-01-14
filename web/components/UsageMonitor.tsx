@@ -45,38 +45,62 @@ interface UsageHistoryPoint {
   unmatched: UnmatchedProcess[];
 }
 
+const STORAGE_KEY = "usageHistory";
+const TIME_FORMAT: Intl.DateTimeFormatOptions = {
+  hour: "numeric",
+  minute: "2-digit",
+  second: "2-digit",
+};
+
+function loadSavedHistory(): UsageHistoryPoint[] {
+  if (typeof window !== "undefined") {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        return JSON.parse(saved) as UsageHistoryPoint[];
+      } catch {
+        return [];
+      }
+    }
+  }
+  return [];
+}
+
+function usageDataFromHistory(history: UsageHistoryPoint[]): UsageData | null {
+  const last = history.at(-1);
+  if (!last) return null;
+  return {
+    nodes: last.nodes,
+    unmatched: last.unmatched,
+    total_cpu: last.totalCpu,
+    total_memory_mb: last.totalMemory,
+  };
+}
+
 export function UsageMonitor({ ros, isConnected, topics }: UsageMonitorProps) {
-  const [usageData, setUsageData] = useState<UsageData | null>(null);
+  const [usageHistory, setUsageHistory] = useState(loadSavedHistory);
+  const [usageData, setUsageData] = useState<UsageData | null>(() =>
+    usageDataFromHistory(loadSavedHistory())
+  );
   const [allNodes, setAllNodes] = useState<string[]>([]);
-  const [usageHistory, setUsageHistory] = useState<UsageHistoryPoint[]>([]);
 
   useEffect(() => {
     if (!isConnected || !ros) return;
 
-    console.log("Subscribing to /usage topic...");
-
     const usageTopic = new ROSLIB.Topic({
-      ros: ros,
+      ros,
       name: "/usage",
       messageType: "std_msgs/String",
     });
 
     usageTopic.subscribe((msg: unknown) => {
-      console.log("Received /usage message:", msg);
       try {
-        const data = msg as { data: string };
-        console.log("Raw data:", data.data);
-        const parsed = JSON.parse(data.data) as UsageData;
-        console.log("Parsed usage data:", parsed);
+        const parsed = JSON.parse((msg as { data: string }).data) as UsageData;
         setUsageData(parsed);
 
-        // Add to history for charting (keep last 30 data points)
+        // Add to history for charting
         const now = new Date();
-        const timeStr = now.toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-          second: "2-digit",
-        });
+        const timeStr = now.toLocaleTimeString("en-US", TIME_FORMAT);
 
         setUsageHistory((prev) => {
           const newPoint: UsageHistoryPoint = {
@@ -87,54 +111,46 @@ export function UsageMonitor({ ros, isConnected, topics }: UsageMonitorProps) {
             nodes: parsed.nodes,
             unmatched: parsed.unmatched,
           };
-          const updated = [...prev, newPoint];
-          // Keep last 30 points (1 minute of data at 2s intervals)
-          return updated.slice(-30);
+          // Keep last 300 points (10 minutes of data at 2s intervals)
+          if (prev.length >= 300) {
+            return [...prev.slice(1), newPoint];
+          }
+          return [...prev, newPoint];
         });
       } catch (error) {
         console.error("Failed to parse usage data:", error, msg);
       }
     });
 
-    return () => {
-      usageTopic.unsubscribe();
-      console.log("Unsubscribed from /usage topic");
-    };
+    return () => usageTopic.unsubscribe();
   }, [isConnected, ros]);
 
-  // Discover nodes from available topics
+  // Save usage history to localStorage when it changes
   useEffect(() => {
-    if (!topics || topics.length === 0) return;
+    if (usageHistory.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(usageHistory));
+    }
+  }, [usageHistory]);
 
-    // Extract unique node names from topics
-    // ROS topics typically follow pattern: /node_name/topic_name or /topic_name
-    const nodeSet = new Set<string>();
-
-    topics.forEach((topic) => {
-      const parts = topic.split("/").filter((p) => p.length > 0);
-      if (parts.length > 1) {
-        // Topic like /node_name/topic_name
-        nodeSet.add(parts[0]);
-      }
-    });
-
-    setAllNodes(Array.from(nodeSet));
+  // Discover nodes from available topics (pattern: /node_name/topic_name)
+  useEffect(() => {
+    if (topics.length === 0) return;
+    const nodes = new Set(
+      topics
+        .map((t) => t.split("/").filter(Boolean))
+        .filter((parts) => parts.length > 1)
+        .map((parts) => parts[0])
+    );
+    setAllNodes([...nodes]);
   }, [topics]);
 
-  if (!isConnected) {
+  if (!isConnected || !usageData) {
     return (
       <div className="mb-6 p-4 bg-gray-100 rounded">
         <h2 className="text-lg font-semibold mb-2">System Usage</h2>
-        <div className="text-gray-500">Not connected to ROS</div>
-      </div>
-    );
-  }
-
-  if (!usageData) {
-    return (
-      <div className="mb-6 p-4 bg-gray-100 rounded">
-        <h2 className="text-lg font-semibold mb-2">System Usage</h2>
-        <div className="text-gray-500">Waiting for usage data...</div>
+        <div className="text-gray-500">
+          {!isConnected ? "Not connected to ROS" : "Waiting for usage data..."}
+        </div>
       </div>
     );
   }
@@ -142,20 +158,15 @@ export function UsageMonitor({ ros, isConnected, topics }: UsageMonitorProps) {
   const trackedNodeNames = new Set(usageData.nodes.map((n) => n.name));
   const missingNodes = allNodes.filter((node) => !trackedNodeNames.has(node));
 
-  const allProcesses = [
-    ...usageData.nodes.map((n) => ({ ...n, type: "node" as const })),
-    ...usageData.unmatched.map((u) => ({ ...u, type: "unmatched" as const })),
-  ];
-
-  const sortedByCpu = [...allProcesses].sort(
+  const sortedByCpu = [...usageData.nodes, ...usageData.unmatched].sort(
     (a, b) => b.cpu_percent - a.cpu_percent,
   );
-  const sortedByMemory = [...allProcesses].sort(
+  const sortedByMemory = [...usageData.nodes, ...usageData.unmatched].sort(
     (a, b) => b.memory_mb - a.memory_mb,
   );
 
   return (
-    <div className="mb-6">
+    <div className="mb-6 mt-8">
       <h2 className="text-lg font-semibold mb-3">System Usage</h2>
 
       {/* Charts with integrated totals and top processes */}

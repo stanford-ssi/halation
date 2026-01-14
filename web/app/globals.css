@@ -24,3 +24,10 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Remove focus outline from Recharts elements */
+.recharts-wrapper,
+.recharts-wrapper * {
+  outline: none !important;
+  box-shadow: none !important;
+}
