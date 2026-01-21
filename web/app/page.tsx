@@ -3,6 +3,7 @@
 import { useRos } from "@/hooks/useRos";
 import { MotorControl } from "@/components/MotorControl";
 import { UsageMonitor } from "@/components/UsageMonitor";
+import { LogViewer } from "@/components/LogViewer";
 
 function TopicChip({
   topic,
@@ -89,6 +90,8 @@ export default function Home() {
       />
 
       <UsageMonitor ros={ros} isConnected={isConnected} topics={topics} />
+
+      <LogViewer ros={ros} isConnected={isConnected} />
 
       <div className="mb-4">
         <div className="flex justify-between items-center">

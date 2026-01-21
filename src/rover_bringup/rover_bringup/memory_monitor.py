@@ -136,6 +136,8 @@ class MemoryMonitor(Node):
                     f'Total: CPU={total_cpu:.1f}% MEM={total_memory_mb:.1f}MB | '
                     f'All Nodes: {len(nodes_list)}'
                 )
+                self.get_logger().info('[PLACEHOLDER] Log system temperature here')
+                self.get_logger().info('[PLACEHOLDER] Log disk usage here')
         except Exception as e:
             self.get_logger().error(f'Error in publish_memory: {e}')
 

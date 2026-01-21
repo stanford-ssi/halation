@@ -7,6 +7,7 @@ class RoverBringupNode(Node):
     def __init__(self):
         super().__init__("rover_bringup")
         self.get_logger().info("Rover bringup node initialized")
+        self.get_logger().info("[PLACEHOLDER] Log hardware initialization status here")
         self.pinger = self.create_publisher(String, "ping", 10)
         PING_EVERY = 1.0
         self.timer = self.create_timer(PING_EVERY, self.ping)

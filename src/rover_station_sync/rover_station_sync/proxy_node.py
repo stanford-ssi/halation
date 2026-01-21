@@ -13,6 +13,7 @@ class FastAPIProxyNode(Node):
         self.rosbridge_port = 9095
 
         self.get_logger().info(f"Station Sync Proxy Node @port={self.port}, @rosbridge_port={self.rosbridge_port}")
+        self.get_logger().info("[PLACEHOLDER] Log connection to rosbridge status here")
 
         app = FastAPI()
 
@@ -28,11 +29,12 @@ class FastAPIProxyNode(Node):
         @app.websocket("/ws")
         async def ws(websocket: WebSocket):
             await self.ws_proxy.proxy(websocket=websocket)
-            
+
 
         # run FastAPI in a separate thread so rclpy spin() is not blocked
         thread = threading.Thread(target=lambda: uvicorn.run(app, host="0.0.0.0", port=self.port, log_level="info"))
         thread.start()
+
 
 
 def main(args=None):
