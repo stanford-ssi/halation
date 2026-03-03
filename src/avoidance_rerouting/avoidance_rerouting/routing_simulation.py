@@ -1,9 +1,12 @@
+import json
+import math
+
+import numpy as np
 import rclpy
 from rclpy.node import Node
+from std_msgs.msg import String
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Point
-import numpy as np
-import math
 
 class BoundingBox:
     """Class to store bounding box data for detected objects"""
@@ -39,35 +42,40 @@ class BoundingBox:
 class RoutingSimulation(Node):
     def __init__(self):
         super().__init__('routing_simulation')
-        
-        # Publisher for bounding box markers
+
+        self.declare_parameter('use_test_obstacles', True)
+        self.use_test_obstacles = self.get_parameter('use_test_obstacles').value
+
         self.marker_publisher = self.create_publisher(
-            MarkerArray, 
-            '/object_bounding_boxes', 
+            MarkerArray,
+            '/object_bounding_boxes',
             10
         )
-        
-        # Publisher for rover position marker
+
         self.rover_marker_publisher = self.create_publisher(
             Marker,
             '/rover_position',
             10
         )
-        
-        # Timer to publish at regular intervals
+
         self.timer = self.create_timer(0.1, self.publish_markers)
-        
-        # Rover position (x, y, theta)
+
         self.rover_x = -5.0
         self.rover_y = 0.0
-        self.rover_theta = 0.0  # Rover's heading angle (radians)
-        
-        # List to store all detected bounding boxes
+        self.rover_theta = 0.0
+
         self.bounding_boxes = []
         self.blocking_bbox = None
 
-        # Create test bounding boxes
-        self.create_test_bounding_boxes()
+        if self.use_test_obstacles:
+            self.create_test_bounding_boxes()
+        else:
+            self.create_subscription(
+                String,
+                '/vision_detections',
+                self.vision_detections_callback,
+                10,
+            )
 
         self.rover_width = 0.6
         self.rover_length = 0.8
@@ -105,6 +113,27 @@ class RoutingSimulation(Node):
             rover_pos=rover_pos
         )
         self.bounding_boxes.append(bbox)
+
+    def vision_detections_callback(self, msg):
+        try:
+            detections = json.loads(msg.data)
+        except json.JSONDecodeError:
+            self.get_logger().warn('Invalid JSON on /vision_detections')
+            return
+
+        self.bounding_boxes.clear()
+        self.blocking_bbox = None
+
+        for det in detections:
+            self.define_obstacle(
+                height=det.get('height_m', 0.5),
+                width=det.get('width_m', 0.3),
+                distance=det['distance_m'],
+                angle=det['angle_deg'],
+            )
+
+        if detections:
+            self.get_logger().info(f'Updated {len(detections)} vision obstacles')
 
     def create_test_bounding_boxes(self):
         """

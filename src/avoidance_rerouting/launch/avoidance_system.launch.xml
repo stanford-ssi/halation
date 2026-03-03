@@ -23,9 +23,21 @@
 
   <node
     pkg="avoidance_rerouting"
+    exec="vision_detection"
+    name="vision_detection_node"
+    output="screen">
+    <param name="camera_index" value="0"/>
+    <param name="detection_rate" value="5.0"/>
+    <param name="text_prompt" value="iphone."/>
+  </node>
+
+  <node
+    pkg="avoidance_rerouting"
     exec="routing_simulation"
     name="routing_simulation"
-    output="screen"/>
+    output="screen">
+    <param name="use_test_obstacles" value="false"/>
+  </node>
 
   <node
     pkg="foxglove_bridge"
