@@ -1,0 +1,17 @@
+# IMU Driver Configuration
+
+# I2C bus number
+# For Raspberry Pi: usually 1 (check with: i2cdetect -y 1)
+# For Jetson Nano: check with lsmod | grep i2c and i2cdetect
+i2c_bus: 1
+
+# I2C address of BNO055
+# Default: 0x28
+# Alternative: 0x29 (if address pin is pulled high)
+i2c_address: 0x28
+
+# Frame ID for published messages
+frame_id: "imu"
+
+# Publishing rate in Hz
+publish_rate: 100.0

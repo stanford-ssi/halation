@@ -1,0 +1,10 @@
+# GPS Driver Configuration
+
+# Serial port for GPS module
+port: "/dev/ttyUSB0"
+
+# Baudrate (default for Adafruit Ultimate GPS is 9600)
+baudrate: 9600
+
+# Frame ID for published messages
+frame_id: "gps"
