@@ -55,7 +55,7 @@ class RoutingSimulation(Node):
         )
         
         # Timer to publish at regular intervals
-        self.timer = self.create_timer(0.1, self.publish_markers)
+        self.timer = self.create_timer(0.2, self.publish_markers)
         
         # Rover position (x, y, theta)
         self.rover_x = -5.0
@@ -310,48 +310,24 @@ class RoutingSimulation(Node):
         self.rover_x += d * math.cos(self.rover_theta)
         self.rover_y += d * math.sin(self.rover_theta)
 
-    def will_collide_ahead(self):
+    def will_collide_ahead(self, bbox):
         """
         Stateful forward collision detection with hysteresis.
         """
-
-        # If we already have a blocking obstacle,
-        # check if it's still in the way with relaxed bounds
-        if self.blocking_bbox is not None:
-            bbox = self.blocking_bbox
-
-            dx = bbox.x - self.rover_x
-            dy = bbox.y - self.rover_y
-
-            forward_dist = dx * math.cos(self.rover_theta) + dy * math.sin(self.rover_theta)
-            lateral_dist = -dx * math.sin(self.rover_theta) + dy * math.cos(self.rover_theta)
-
-            safe_forward = self.lookahead_distance + self.rover_length / self.rover_safety_margin + bbox.length / 2.0
-            safe_lateral = self.rover_width / self.rover_safety_margin + bbox.width / 2.0
-
-            # If still clearly blocking → remain blocked
-            if 0 < forward_dist < safe_forward and abs(lateral_dist) < safe_lateral:
-                return True
-
-            # Otherwise obstacle cleared
-            self.blocking_bbox = None
-
         # Normal detection
-        for bbox in self.bounding_boxes:
+        dx = bbox.x - self.rover_x
+        dy = bbox.y - self.rover_y
 
-            dx = bbox.x - self.rover_x
-            dy = bbox.y - self.rover_y
+        forward_dist = dx * math.cos(self.rover_theta) + dy * math.sin(self.rover_theta)
+        lateral_dist = -dx * math.sin(self.rover_theta) + dy * math.cos(self.rover_theta)
 
-            forward_dist = dx * math.cos(self.rover_theta) + dy * math.sin(self.rover_theta)
-            lateral_dist = -dx * math.sin(self.rover_theta) + dy * math.cos(self.rover_theta)
+        safe_forward = self.lookahead_distance + self.rover_length / self.rover_safety_margin + bbox.length / 2.0
+        safe_lateral = self.rover_width / self.rover_safety_margin + bbox.width / 2.0
 
-            safe_forward = self.lookahead_distance + self.rover_length / self.rover_safety_margin + bbox.length / 2.0
-            safe_lateral = self.rover_width / self.rover_safety_margin + bbox.width / 2.0
-
-            if 0 < forward_dist < safe_forward:
-                if abs(lateral_dist) < safe_lateral:
-                    self.blocking_bbox = bbox
-                    return True
+        if 0 < forward_dist < safe_forward:
+            if abs(lateral_dist) < safe_lateral:
+                self.blocking_bbox = bbox
+                return True
 
         return False
 
@@ -393,33 +369,27 @@ class RoutingSimulation(Node):
             return self.rover_theta + turn_angle
         
     def update_rover_position(self):
-
+        # TODO: Needs to take in as parameters the x and y of rover and listen to obstacle list
         dx = self.target_x - self.rover_x
         dy = self.target_y - self.rover_y
 
         if (dx**2 + dy**2) < self.target_threshold:
             return
 
-        # If currently blocked → stay in avoidance mode
-        if self.blocking_bbox is not None:
-            if self.will_collide_ahead():
-                self.rover_theta = self.compute_avoidance_heading()
-                self.move_forward(self.forward_step)
-                return
-
         # Normal target tracking
         target_theta = math.atan2(dy, dx)
 
+        for bbox in self.bounding_boxes:
+            if self.will_collide_ahead(bbox):
+                self.rover_theta = self.compute_avoidance_heading()
+                self.move_forward(self.forward_step)
+                return
+            
         heading_error = target_theta - self.rover_theta
         heading_error = math.atan2(math.sin(heading_error), math.cos(heading_error))
 
         self.rover_theta += 0.1 * heading_error
-
-        if not self.will_collide_ahead():
-            self.move_forward(self.forward_step)
-        else:
-            self.rover_theta = self.compute_avoidance_heading()
-            self.move_forward(self.forward_step)
+        self.move_forward(self.forward_step)
         
     def publish_markers(self):
         """
