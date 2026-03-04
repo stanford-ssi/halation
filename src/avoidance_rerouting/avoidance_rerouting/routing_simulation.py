@@ -53,6 +53,13 @@ class RoutingSimulation(Node):
             '/rover_position',
             10
         )
+
+        # Publisher for planned trajectory
+        self.trajectory_publisher = self.create_publisher(
+            Marker,
+            '/planned_trajectory',
+            10
+        )
         
         # Timer to publish at regular intervals
         self.timer = self.create_timer(0.2, self.publish_markers)
@@ -82,6 +89,10 @@ class RoutingSimulation(Node):
         # Motion parameters
         self.forward_step = 0.1
         self.lookahead_distance = 2.0
+
+        # Trajectory planning parameters
+        self.max_plan_steps = 300     # Max simulation steps per plan
+        self.plan_turn_angle = math.radians(5)  # Turn increment when avoiding
         
         self.get_logger().info('Routing Simulation Node Started')
 
@@ -303,118 +314,334 @@ class RoutingSimulation(Node):
         
         return marker
 
-    def move_forward(self, d):
+    # -----------------------------------------------------------------------
+    # Pure geometry helpers (operate on explicit state, no self mutation)
+    # -----------------------------------------------------------------------
+
+    def _will_collide(self, vx, vy, vtheta, bbox):
         """
-        Move rover forward by distance d along its current heading.
+        Check whether a virtual rover at (vx, vy, vtheta) would collide with
+        bbox within the lookahead window.  Pure function — no side-effects.
         """
-        self.rover_x += d * math.cos(self.rover_theta)
-        self.rover_y += d * math.sin(self.rover_theta)
+        dx = bbox.x - vx
+        dy = bbox.y - vy
 
-    def will_collide_ahead(self, bbox):
+        forward_dist = dx * math.cos(vtheta) + dy * math.sin(vtheta)
+        lateral_dist = -dx * math.sin(vtheta) + dy * math.cos(vtheta)
+
+        safe_forward = (
+            self.lookahead_distance
+            + self.rover_length / self.rover_safety_margin
+            + bbox.length / 2.0
+        )
+        safe_lateral = (
+            self.rover_width / self.rover_safety_margin
+            + bbox.width / 2.0
+        )
+
+        return (0 < forward_dist < safe_forward) and (abs(lateral_dist) < safe_lateral)
+
+    def _any_collision(self, vx, vy, vtheta):
+        """Return the first blocking bbox for a virtual pose, or None."""
+        for bbox in self.bounding_boxes:
+            if self._will_collide(vx, vy, vtheta, bbox):
+                return bbox
+        return None
+
+    def _avoidance_heading(self, vx, vy, vtheta, blocking_bbox):
         """
-        Stateful forward collision detection with hysteresis.
+        Compute an avoidance heading given the virtual rover state and the
+        obstacle that is currently blocking.  Pure function — no side-effects.
+
+        The logic mirrors compute_avoidance_heading() but uses the nearest
+        *non-blocking* obstacle to decide which side to steer toward, so the
+        virtual rover steers away from clutter on the open side.
         """
-        # Normal detection
-        dx = bbox.x - self.rover_x
-        dy = bbox.y - self.rover_y
-
-        forward_dist = dx * math.cos(self.rover_theta) + dy * math.sin(self.rover_theta)
-        lateral_dist = -dx * math.sin(self.rover_theta) + dy * math.cos(self.rover_theta)
-
-        safe_forward = self.lookahead_distance + self.rover_length / self.rover_safety_margin + bbox.length / 2.0
-        safe_lateral = self.rover_width / self.rover_safety_margin + bbox.width / 2.0
-
-        if 0 < forward_dist < safe_forward:
-            if abs(lateral_dist) < safe_lateral:
-                self.blocking_bbox = bbox
-                return True
-
-        return False
-
-    def compute_avoidance_heading(self):
-        """
-        Generate a new heading that avoids closest obstacle
-        while still generally pointing toward target.
-        """
-
         closest_bbox = None
         closest_dist = float('inf')
 
         for bbox in self.bounding_boxes:
-            dx = bbox.x - self.rover_x
-            dy = bbox.y - self.rover_y
-            dist = math.hypot(dx, dy)
-
+            if bbox is blocking_bbox:
+                continue
+            dist = math.hypot(bbox.x - vx, bbox.y - vy)
             if dist < closest_dist:
                 closest_dist = dist
                 closest_bbox = bbox
 
         if closest_bbox is None:
-            return self.rover_theta
-        if closest_bbox == self.blocking_bbox:
-            return self.rover_theta
+            # No nearby secondary obstacles — steer left by default
+            return vtheta + self.plan_turn_angle
 
-        # Determine which side obstacle is on
-        dx = closest_bbox.x - self.rover_x
-        dy = closest_bbox.y - self.rover_y
+        dx = closest_bbox.x - vx
+        dy = closest_bbox.y - vy
+        lateral = -dx * math.sin(vtheta) + dy * math.cos(vtheta)
 
-        lateral = -dx * math.sin(self.rover_theta) + dy * math.cos(self.rover_theta)
-
-        # Steer away from obstacle
-        turn_angle = math.radians(30)
-
+        # Steer *away* from the secondary obstacle
         if lateral > 0:
-            return self.rover_theta - turn_angle
+            return vtheta - self.plan_turn_angle
         else:
-            return self.rover_theta + turn_angle
-        
-    def update_rover_position(self):
-        # TODO: Needs to take in as parameters the x and y of rover and listen to obstacle list
-        dx = self.target_x - self.rover_x
-        dy = self.target_y - self.rover_y
+            return vtheta + self.plan_turn_angle
 
-        if (dx**2 + dy**2) < self.target_threshold:
-            return
+    def _is_obstacle_clear(self, vx, vy, vtheta, bbox):
+        """
+        Return True once the virtual rover has moved far enough that the
+        obstacle is no longer a threat — meaning it is either fully behind
+        the rover OR displaced laterally beyond the safe corridor.
 
-        # Normal target tracking
-        target_theta = math.atan2(dy, dx)
+        This is the exit condition for avoidance mode and is deliberately
+        stricter than _will_collide so the rover never re-enters the wobble
+        zone while skirting an obstacle.
+        """
+        dx = bbox.x - vx
+        dy = bbox.y - vy
 
-        for bbox in self.bounding_boxes:
-            if self.will_collide_ahead(bbox):
-                self.rover_theta = self.compute_avoidance_heading()
-                self.move_forward(self.forward_step)
-                return
-            
-        heading_error = target_theta - self.rover_theta
-        heading_error = math.atan2(math.sin(heading_error), math.cos(heading_error))
+        forward_dist = dx * math.cos(vtheta) + dy * math.sin(vtheta)
+        lateral_dist = abs(-dx * math.sin(vtheta) + dy * math.cos(vtheta))
 
-        self.rover_theta += 0.1 * heading_error
-        self.move_forward(self.forward_step)
+        # Clearance thresholds — wider than the detection thresholds so
+        # the rover commits to the avoidance arc before resuming goal-seeking.
+        clear_lateral = (
+            self.rover_width / self.rover_safety_margin
+            + bbox.width / 2.0
+            + 0.3        # extra lateral clearance buffer
+        )
+
+        # Obstacle is clear when it is behind us OR fully off to the side
+        behind = forward_dist <= 0
+        beside = lateral_dist > clear_lateral
+
+        return behind or beside
+
+    def _step_virtual_rover(self, vx, vy, vtheta, avoiding_bbox):
+        """
+        Advance virtual rover one step.
+
+        If avoiding_bbox is set the rover stays in avoidance mode for that
+        specific obstacle regardless of whether the lookahead window still
+        detects it, until _is_obstacle_clear() confirms it is safe to resume
+        normal goal-seeking.
+
+        Returns (new_vx, new_vy, new_vtheta, new_avoiding_bbox).
+        """
+        # --- Determine active obstacle ---
+        if avoiding_bbox is not None:
+            # Still avoiding a known obstacle — check whether we have cleared it
+            if self._is_obstacle_clear(vx, vy, vtheta, avoiding_bbox):
+                avoiding_bbox = None   # Cleared: resume normal steering
+
+        if avoiding_bbox is None:
+            # Check whether a new obstacle has entered the lookahead window
+            avoiding_bbox = self._any_collision(vx, vy, vtheta)
+
+        # --- Compute new heading ---
+        if avoiding_bbox is not None:
+            new_vtheta = self._avoidance_heading(vx, vy, vtheta, avoiding_bbox)
+        else:
+            # Normal target-seeking
+            dx = self.target_x - vx
+            dy = self.target_y - vy
+            target_theta = math.atan2(dy, dx)
+            heading_error = math.atan2(
+                math.sin(target_theta - vtheta),
+                math.cos(target_theta - vtheta)
+            )
+            new_vtheta = vtheta + 0.1 * heading_error
+
+        new_vx = vx + self.forward_step * math.cos(new_vtheta)
+        new_vy = vy + self.forward_step * math.sin(new_vtheta)
+        return new_vx, new_vy, new_vtheta, avoiding_bbox
+
+    # -----------------------------------------------------------------------
+    # Trajectory planner — pure output, no rover state mutation
+    # -----------------------------------------------------------------------
+
+    def target_is_in_sight(self):
+        """
+        Return True if a straight, collision-free line exists from the rover's
+        current position directly to the target — i.e. no obstacle safety
+        corridor intersects the direct path.
+        """
+        return not self._segment_collides(
+            self.rover_x, self.rover_y,
+            self.target_x, self.target_y
+        )
+
+    def plan_trajectory(self):
+        """
+        Simulate a virtual rover forward from the current real pose and return
+        a list of (x, y) waypoints that avoid all known obstacles while
+        progressing toward the target.
+
+        Avoidance mode is sticky: once the virtual rover starts avoiding an
+        obstacle it holds that arc until _is_obstacle_clear() confirms the
+        obstacle is fully behind or beside it.  This prevents the oscillating
+        curve that occurs when an obstacle repeatedly enters and exits the
+        constant-width lookahead window.
+
+        The real rover's state (self.rover_x/y/theta) is never modified.
+
+        Returns:
+            Tuple of (waypoints, target_in_sight) where:
+            - waypoints: pruned list of (x, y) tuples representing the planned path
+            - target_in_sight: True if the target is directly reachable with
+              no obstacles in the way
+        """
+        target_in_sight = self.target_is_in_sight()
+
+        vx, vy, vtheta = self.rover_x, self.rover_y, self.rover_theta
+        avoiding_bbox = None
+        waypoints = [(vx, vy)]
+
+        for _ in range(self.max_plan_steps):
+            dx = self.target_x - vx
+            dy = self.target_y - vy
+            if (dx ** 2 + dy ** 2) < self.target_threshold ** 2:
+                waypoints.append((self.target_x, self.target_y))
+                break
+
+            vx, vy, vtheta, avoiding_bbox = self._step_virtual_rover(
+                vx, vy, vtheta, avoiding_bbox
+            )
+            waypoints.append((vx, vy))
+
+        return self._shortcut_trajectory(waypoints), target_in_sight
+
+    def _segment_collides(self, x0, y0, x1, y1):
+        """
+        Return True if the straight line segment from (x0,y0) to (x1,y1)
+        passes through any obstacle's safety corridor.
+
+        The segment is sampled at steps of forward_step so the resolution
+        matches the planner and no gap can swallow an obstacle.
+        """
+        seg_len = math.hypot(x1 - x0, y1 - y0)
+        if seg_len < 1e-6:
+            return False
+
+        steps = max(2, int(seg_len / self.forward_step) + 1)
+        heading = math.atan2(y1 - y0, x1 - x0)
+
+        for i in range(steps + 1):
+            t = i / steps
+            sx = x0 + t * (x1 - x0)
+            sy = y0 + t * (y1 - y0)
+            if self._any_collision(sx, sy, heading):
+                return True
+        return False
+
+    def _shortcut_trajectory(self, waypoints):
+        """
+        Greedy path shortcutting: walk the waypoint list and skip any
+        intermediate point that can be connected to a later point by a
+        straight, collision-free segment.
+
+        This removes the stutter/oscillation artefacts that arise when the
+        planner makes many tiny heading corrections near obstacle edges,
+        producing a clean path with only the geometrically necessary turns.
+
+        Parameters:
+            waypoints: raw list of (x, y) tuples from the planner
+
+        Returns:
+            Pruned list of (x, y) tuples.
+        """
+        if len(waypoints) < 3:
+            return waypoints
+
+        pruned = [waypoints[0]]
+        i = 0
+
+        while i < len(waypoints) - 1:
+            # Try to connect pruned[-1] directly to the furthest possible
+            # point without hitting any obstacle.
+            best_j = i + 1
+            for j in range(len(waypoints) - 1, i + 1, -1):
+                x0, y0 = pruned[-1]
+                x1, y1 = waypoints[j]
+                if not self._segment_collides(x0, y0, x1, y1):
+                    best_j = j
+                    break
+            pruned.append(waypoints[best_j])
+            i = best_j
+
+        return pruned
+
+    def create_trajectory_marker(self, waypoints, target_in_sight):
+        """
+        Build a LINE_STRIP marker that visualises the planned trajectory.
+
+        Color encodes whether the target is directly reachable:
+          - Green  (0, 1, 0): target is in sight — no obstacles on direct path
+          - Yellow (1, 1, 0): target is obscured — avoidance path is active
+
+        Parameters:
+            waypoints: list of (x, y) tuples from plan_trajectory()
+            target_in_sight: bool returned by plan_trajectory()
+
+        Returns:
+            Marker message (LINE_STRIP)
+        """
+        marker = Marker()
+        marker.header.frame_id = "laser"
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = "planned_trajectory"
+        marker.id = 0
+        marker.type = Marker.LINE_STRIP
+        marker.action = Marker.ADD
+
+        for wx, wy in waypoints:
+            p = Point()
+            p.x = wx
+            p.y = wy
+            p.z = 0.05          # Slightly above ground so it is visible
+            marker.points.append(p)
+
+        marker.scale.x = 0.05   # Line width
+
+        if target_in_sight:
+            # Green — clear line of sight to target
+            marker.color.r = 0.0
+            marker.color.g = 1.0
+            marker.color.b = 0.0
+        else:
+            # Yellow — avoidance path active
+            marker.color.r = 1.0
+            marker.color.g = 1.0
+            marker.color.b = 0.0
+
+        marker.color.a = 1.0
+
+        return marker
         
     def publish_markers(self):
         """
-        Main publishing function that creates and publishes both
-        rover position and bounding boxes.
-        """
-        # Update rover position based on navigation logic
-        self.update_rover_position()
+        Main publishing function.
 
-        # Publish rover position
+        Computes a local avoidance trajectory and publishes it together with
+        the static rover position and obstacle bounding boxes.
+        The real rover pose is never modified here.
+        """
+        # --- Plan trajectory (read-only on rover state) ---
+        waypoints, target_in_sight = self.plan_trajectory()
+
+        self.get_logger().info(
+            f'Target in sight: {target_in_sight}',
+            throttle_duration_sec=10.0
+        )
+
+        # --- Publish planned trajectory ---
+        traj_marker = self.create_trajectory_marker(waypoints, target_in_sight)
+        self.trajectory_publisher.publish(traj_marker)
+
+        # --- Publish rover position (static in production) ---
         rover_marker = self.create_rover_marker()
         self.rover_marker_publisher.publish(rover_marker)
         
-        # Publish bounding boxes
+        # --- Publish bounding boxes ---
         marker_array = MarkerArray()
-        
-        # Create markers for all stored bounding boxes
         for i, bbox in enumerate(self.bounding_boxes):
-            marker = self.create_bounding_box_marker(
-                marker_id=i,
-                bbox=bbox
-            )
+            marker = self.create_bounding_box_marker(marker_id=i, bbox=bbox)
             marker_array.markers.append(marker)
-        
-        # Publish the marker array
         self.marker_publisher.publish(marker_array)
 
 def main(args=None):
