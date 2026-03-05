@@ -2,8 +2,10 @@ import rclpy
 from rclpy.node import Node
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Point
+from std_msgs.msg import String
 import numpy as np
 import math
+import json
 
 class BoundingBox:
     """Class to store bounding box data for detected objects"""
@@ -60,12 +62,20 @@ class RoutingSimulation(Node):
             '/planned_trajectory',
             10
         )
+
+        # Publisher for the next waypoint goal coordinate
+        # Message format: JSON string {"x": float, "y": float}
+        self.waypoint_publisher = self.create_publisher(
+            String,
+            '/next_waypoint',
+            10
+        )
         
         # Timer to publish at regular intervals
         self.timer = self.create_timer(0.2, self.publish_markers)
         
         # Rover position (x, y, theta)
-        self.rover_x = -5.0
+        self.rover_x = -10.0
         self.rover_y = 0.0
         self.rover_theta = 0.0  # Rover's heading angle (radians)
         
@@ -96,6 +106,13 @@ class RoutingSimulation(Node):
         
         self.get_logger().info('Routing Simulation Node Started')
 
+        self.moving_y = .1
+        self.moving_y_max = 4
+
+    # -----------------------------
+    # Creating markers with visualization and testing
+    # -----------------------------
+
     def define_obstacle(self, height, width, distance, angle):
         """
         Define and add a new obstacle bounding box.
@@ -122,20 +139,23 @@ class RoutingSimulation(Node):
         Create initial test bounding boxes for simulation.
         These are stored in self.bounding_boxes list.
         """
-        orig_x = self.rover_x
-        self.rover_theta = math.pi / 6
-        self.rover_x = .5
+
+        self.define_obstacle(2, 2, 7, 0)
+
+        # orig_x = self.rover_x
+        # self.rover_theta = math.pi / 6
+        # self.rover_x = .5
         
-        self.define_obstacle(1.0, 0.5, 3.0, -45)
+        # self.define_obstacle(1.0, 0.5, 3.0, -45)
         
-        self.define_obstacle(.9, 0.6, 1.5, 30)
+        # self.define_obstacle(.9, 0.6, 1.5, 30)
 
-        self.define_obstacle(.9, 0.6, 4, 30)
+        # self.define_obstacle(.9, 0.6, 4, 30)
 
-        self.rover_x = -3
-        self.define_obstacle(0.5, 1.0, 2.0, -70)
+        # self.rover_x = -3
+        # self.define_obstacle(0.5, 1.0, 2.0, -70)
 
-        self.rover_x = orig_x
+        # self.rover_x = orig_x
 
     def create_bounding_box_marker(self, marker_id, bbox):
         """
@@ -350,38 +370,61 @@ class RoutingSimulation(Node):
 
     def _avoidance_heading(self, vx, vy, vtheta, blocking_bbox):
         """
-        Compute an avoidance heading given the virtual rover state and the
-        obstacle that is currently blocking.  Pure function — no side-effects.
-
-        The logic mirrors compute_avoidance_heading() but uses the nearest
-        *non-blocking* obstacle to decide which side to steer toward, so the
-        virtual rover steers away from clutter on the open side.
+        Compute an avoidance heading by checking which side of the blocking
+        obstacle requires the smaller heading change from current trajectory.
+        
+        Projects the obstacle into the rover's local frame to determine which
+        side it sits on, then computes the required heading to clear each edge.
+        Whichever needs less deviation from the current heading is chosen.
         """
-        closest_bbox = None
-        closest_dist = float('inf')
+        dx = blocking_bbox.x - vx
+        dy = blocking_bbox.y - vy
 
-        for bbox in self.bounding_boxes:
-            if bbox is blocking_bbox:
-                continue
-            dist = math.hypot(bbox.x - vx, bbox.y - vy)
-            if dist < closest_dist:
-                closest_dist = dist
-                closest_bbox = bbox
-
-        if closest_bbox is None:
-            # No nearby secondary obstacles — steer left by default
-            return vtheta + self.plan_turn_angle
-
-        dx = closest_bbox.x - vx
-        dy = closest_bbox.y - vy
+        # Lateral offset of obstacle center in rover's local frame
+        # Positive = obstacle is to the left, negative = to the right
         lateral = -dx * math.sin(vtheta) + dy * math.cos(vtheta)
 
-        # Steer *away* from the secondary obstacle
-        if lateral > 0:
-            return vtheta - self.plan_turn_angle
-        else:
+        # Half-width of the corridor that needs to be cleared
+        clear_half = (
+            self.rover_width / self.rover_safety_margin
+            + blocking_bbox.width / 2.0
+            + 0.3  # buffer matches _is_obstacle_clear
+        )
+
+        # Heading required to pass just outside each edge of the obstacle
+        dist = math.hypot(dx, dy)
+        if dist < 1e-6:
             return vtheta + self.plan_turn_angle
 
+        # Angle to obstacle center from rover
+        angle_to_obstacle = math.atan2(dy, dx)
+
+        # Angular half-width of the obstacle from rover's perspective
+        angular_half = math.asin(min(clear_half / dist, 1.0))
+
+        # Heading to clear the left edge (pass to the right of obstacle)
+        heading_pass_right = angle_to_obstacle - angular_half
+        # Heading to clear the right edge (pass to the left of obstacle)
+        heading_pass_left = angle_to_obstacle + angular_half
+
+        # Heading error for each option (how much we'd have to turn)
+        def heading_error(target):
+            return abs(math.atan2(math.sin(target - vtheta), math.cos(target - vtheta)))
+
+        error_pass_right = heading_error(heading_pass_right)
+        error_pass_left = heading_error(heading_pass_left)
+
+        # Pick the side requiring less total heading change, stepped by plan_turn_angle
+        if error_pass_right < error_pass_left:
+            # Nudge toward passing right of the obstacle
+            if lateral < 0:  # obstacle already to our right, keep going right
+                return vtheta - self.plan_turn_angle
+            else:
+                return vtheta - self.plan_turn_angle
+        else:
+            # Nudge toward passing left of the obstacle
+            return vtheta + self.plan_turn_angle
+        
     def _is_obstacle_clear(self, vx, vy, vtheta, bbox):
         """
         Return True once the virtual rover has moved far enough that the
@@ -472,14 +515,6 @@ class RoutingSimulation(Node):
         a list of (x, y) waypoints that avoid all known obstacles while
         progressing toward the target.
 
-        Avoidance mode is sticky: once the virtual rover starts avoiding an
-        obstacle it holds that arc until _is_obstacle_clear() confirms the
-        obstacle is fully behind or beside it.  This prevents the oscillating
-        curve that occurs when an obstacle repeatedly enters and exits the
-        constant-width lookahead window.
-
-        The real rover's state (self.rover_x/y/theta) is never modified.
-
         Returns:
             Tuple of (waypoints, target_in_sight) where:
             - waypoints: pruned list of (x, y) tuples representing the planned path
@@ -510,9 +545,6 @@ class RoutingSimulation(Node):
         """
         Return True if the straight line segment from (x0,y0) to (x1,y1)
         passes through any obstacle's safety corridor.
-
-        The segment is sampled at steps of forward_step so the resolution
-        matches the planner and no gap can swallow an obstacle.
         """
         seg_len = math.hypot(x1 - x0, y1 - y0)
         if seg_len < 1e-6:
@@ -534,16 +566,6 @@ class RoutingSimulation(Node):
         Greedy path shortcutting: walk the waypoint list and skip any
         intermediate point that can be connected to a later point by a
         straight, collision-free segment.
-
-        This removes the stutter/oscillation artefacts that arise when the
-        planner makes many tiny heading corrections near obstacle edges,
-        producing a clean path with only the geometrically necessary turns.
-
-        Parameters:
-            waypoints: raw list of (x, y) tuples from the planner
-
-        Returns:
-            Pruned list of (x, y) tuples.
         """
         if len(waypoints) < 3:
             return waypoints
@@ -552,8 +574,6 @@ class RoutingSimulation(Node):
         i = 0
 
         while i < len(waypoints) - 1:
-            # Try to connect pruned[-1] directly to the furthest possible
-            # point without hitting any obstacle.
             best_j = i + 1
             for j in range(len(waypoints) - 1, i + 1, -1):
                 x0, y0 = pruned[-1]
@@ -566,6 +586,54 @@ class RoutingSimulation(Node):
 
         return pruned
 
+    def get_next_waypoint(self, waypoints):
+        """
+        Select the immediate next waypoint the rover should drive toward.
+
+        Skips waypoint[0] since that is the rover's current position, and
+        returns waypoint[1] — the first corner or intermediate goal on the
+        planned path.  Falls back to the final target if the path is too short.
+
+        Parameters:
+            waypoints: pruned list of (x, y) tuples from plan_trajectory()
+
+        Returns:
+            (x, y) tuple of the next goal coordinate, or None if the rover
+            has already reached the target.
+        """
+        # waypoints[0] is the rover's current position — skip it
+        if len(waypoints) < 2:
+            return None
+
+        return waypoints[1]
+
+    def publish_next_waypoint(self, waypoints):
+        """
+        Publish the immediate next (x, y) waypoint on /next_waypoint.
+
+        Message format matches the motor_vector convention so the motor
+        controller can consume it directly:
+            {"x": <float>, "y": <float>}
+
+        Parameters:
+            waypoints: pruned list of (x, y) tuples from plan_trajectory()
+        """
+        next_wp = self.get_next_waypoint(waypoints)
+
+        if next_wp is None:
+            self.get_logger().info('Target reached — no waypoint to publish')
+            return
+
+        wx, wy = next_wp
+        payload = json.dumps({"x": round(wx, 4), "y": round(wy, 4)})
+        msg = String()
+        msg.data = payload
+        self.waypoint_publisher.publish(msg)
+
+        self.get_logger().info(
+            f'Next waypoint: x={wx:.3f}, y={wy:.3f}',
+        )
+
     def create_trajectory_marker(self, waypoints, target_in_sight):
         """
         Build a LINE_STRIP marker that visualises the planned trajectory.
@@ -573,13 +641,6 @@ class RoutingSimulation(Node):
         Color encodes whether the target is directly reachable:
           - Green  (0, 1, 0): target is in sight — no obstacles on direct path
           - Yellow (1, 1, 0): target is obscured — avoidance path is active
-
-        Parameters:
-            waypoints: list of (x, y) tuples from plan_trajectory()
-            target_in_sight: bool returned by plan_trajectory()
-
-        Returns:
-            Marker message (LINE_STRIP)
         """
         marker = Marker()
         marker.header.frame_id = "laser"
@@ -593,18 +654,16 @@ class RoutingSimulation(Node):
             p = Point()
             p.x = wx
             p.y = wy
-            p.z = 0.05          # Slightly above ground so it is visible
+            p.z = 0.05
             marker.points.append(p)
 
-        marker.scale.x = 0.05   # Line width
+        marker.scale.x = 0.05
 
         if target_in_sight:
-            # Green — clear line of sight to target
             marker.color.r = 0.0
             marker.color.g = 1.0
             marker.color.b = 0.0
         else:
-            # Yellow — avoidance path active
             marker.color.r = 1.0
             marker.color.g = 1.0
             marker.color.b = 0.0
@@ -615,21 +674,26 @@ class RoutingSimulation(Node):
         
     def publish_markers(self):
         """
-        Main publishing function.
+        Main publishing function called by the timer.
 
-        Computes a local avoidance trajectory and publishes it together with
-        the static rover position and obstacle bounding boxes.
-        The real rover pose is never modified here.
+        Computes a local avoidance trajectory and publishes:
+          - /next_waypoint       — immediate (x, y) goal for the motor controller
+          - /planned_trajectory  — full path visualisation for RViz
+          - /rover_position      — rover bounding box marker
+          - /object_bounding_boxes — obstacle markers
         """
+
+        self.bounding_boxes[0].y += self.moving_y
+        if self.bounding_boxes[0].y > self.moving_y_max or self.bounding_boxes[0].y < -self.moving_y_max:
+            self.moving_y = -self.moving_y
+
         # --- Plan trajectory (read-only on rover state) ---
         waypoints, target_in_sight = self.plan_trajectory()
 
-        self.get_logger().info(
-            f'Target in sight: {target_in_sight}',
-            throttle_duration_sec=10.0
-        )
+        # --- Publish next waypoint for motor controller ---
+        self.publish_next_waypoint(waypoints)
 
-        # --- Publish planned trajectory ---
+        # --- Publish planned trajectory visualisation ---
         traj_marker = self.create_trajectory_marker(waypoints, target_in_sight)
         self.trajectory_publisher.publish(traj_marker)
 
