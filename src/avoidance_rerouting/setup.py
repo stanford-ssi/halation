@@ -28,7 +28,8 @@ setup(
             'lidar_detection = avoidance_rerouting.lidar_detection:main',
             'path_planner_node = avoidance_rerouting.path_planner_node:main',
             'rerouting = avoidance_rerouting.rerouting:main',
-            'routing_simulation = avoidance_rerouting.routing_simulation:main'
+            'routing_simulation = avoidance_rerouting.routing_simulation:main',
+            'terrain_gradient = avoidance_rerouting.terrain_gradient:main'
         ],
     },
 )
