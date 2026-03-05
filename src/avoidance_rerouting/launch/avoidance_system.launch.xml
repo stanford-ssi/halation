@@ -27,6 +27,7 @@
     name="vision_detection_node"
     output="screen">
     <param name="camera_index" value="0"/>
+    <param name="camera_url" value="http://host.docker.internal:5555/"/>
     <param name="detection_rate" value="5.0"/>
     <param name="text_prompt" value="iphone."/>
   </node>

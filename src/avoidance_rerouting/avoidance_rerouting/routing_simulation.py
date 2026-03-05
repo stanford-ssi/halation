@@ -173,7 +173,8 @@ class RoutingSimulation(Node):
         marker.id = marker_id
         marker.type = Marker.LINE_LIST
         marker.action = Marker.ADD
-        
+        marker.lifetime.sec = 5  # Auto-expire after 5 seconds
+
         # Use bbox global position
         obj_center_x = bbox.x
         obj_center_y = bbox.y
@@ -464,15 +465,24 @@ class RoutingSimulation(Node):
         
         # Publish bounding boxes
         marker_array = MarkerArray()
-        
-        # Create markers for all stored bounding boxes
-        for i, bbox in enumerate(self.bounding_boxes):
-            marker = self.create_bounding_box_marker(
-                marker_id=i,
-                bbox=bbox
-            )
-            marker_array.markers.append(marker)
-        
+
+        if not self.bounding_boxes:
+            # Delete all obstacle markers when nothing is detected
+            delete_marker = Marker()
+            delete_marker.header.frame_id = "laser"
+            delete_marker.header.stamp = self.get_clock().now().to_msg()
+            delete_marker.ns = "object_bounding_boxes"
+            delete_marker.action = Marker.DELETEALL
+            marker_array.markers.append(delete_marker)
+        else:
+            # Create markers for all stored bounding boxes
+            for i, bbox in enumerate(self.bounding_boxes):
+                marker = self.create_bounding_box_marker(
+                    marker_id=i,
+                    bbox=bbox
+                )
+                marker_array.markers.append(marker)
+
         # Publish the marker array
         self.marker_publisher.publish(marker_array)
 

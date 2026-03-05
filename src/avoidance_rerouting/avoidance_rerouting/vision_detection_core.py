@@ -6,15 +6,21 @@ from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection
 
 MODEL_ID = "IDEA-Research/grounding-dino-tiny"
 INFER_WIDTH = 480
-CONFIDENCE_THRESHOLD = 0.3
+CONFIDENCE_THRESHOLD = 0.5
 CAMERA_HFOV_DEG = 60.0
 
 KNOWN_OBJECT_WIDTHS = {
     "iphone": 0.08,
+    "phone": 0.08,
+    "cell phone": 0.08,
+    "smartphone": 0.08,
 }
 
 KNOWN_OBJECT_HEIGHTS = {
     "iphone": 0.15,
+    "phone": 0.15,
+    "cell phone": 0.15,
+    "smartphone": 0.15,
 }
 
 DEFAULT_HEIGHT = 0.5
