@@ -22,12 +22,6 @@
   </node> -->
 
   <node
-    pkg="avoidance_rerouting"
-    exec="routing_simulation"
-    name="routing_simulation"
-    output="screen"/>
-
-  <node
     pkg="foxglove_bridge"
     exec="foxglove_bridge"
     name="foxglove_bridge"
