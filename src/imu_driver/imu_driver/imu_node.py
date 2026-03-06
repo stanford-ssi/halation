@@ -3,7 +3,7 @@
 IMU Driver for Adafruit BNO055 9-DOF Absolute Orientation IMU
 Publishes:
   - /imu/heading: std_msgs/Float32 (heading in radians, 0=East, CCW positive, ENU convention)
-  - /imu/data: sensor_msgs/Imu (raw IMU data)
+  - /imu/data: sensor_msgs/Imu (raw IMU data)gi
 """
 
 import rclpy
