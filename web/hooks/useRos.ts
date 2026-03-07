@@ -1,7 +1,8 @@
 import ROSLIB from "roslib";
 import { useEffect, useRef, useState, useCallback } from "react";
 
-const ROS_BRIDGE_URL = "ws://localhost:9095";
+// const ROS_BRIDGE_URL = "ws://localhost:9095";
+const ROS_BRIDGE_URL = "wss://api.ssirovers.org/ws";
 
 class RosPubSub {
   private ros: ROSLIB.Ros | null = null;
