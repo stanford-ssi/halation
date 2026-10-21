@@ -48,6 +48,7 @@ function LogEntry({
 
 export default function Home() {
   const {
+    bridgeUrl,
     topics,
     loggingTopics,
     logs,
@@ -66,6 +67,9 @@ export default function Home() {
           {isConnected ? "Connected" : "Disconnected"}
         </span>
       </h1>
+      <p className="mb-5 text-sm text-slate-500 break-all">
+        Bridge: <code>{bridgeUrl}</code>
+      </p>
 
       <div className="mb-6">
         <h2 className="text-lg font-semibold mb-2">

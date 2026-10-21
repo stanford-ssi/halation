@@ -2,6 +2,11 @@
 
 The Stanford Antarctic Rover project.
 
+### Unity simulation
+
+The Unity scene, terrain, and rover physics are in [halation-unity-simulation](https://github.com/stanford-ssi/halation-unity-simulation).
+See [local simulation setup](docker/simulation/README.md) to run the isolated ROS bridge and connect this repository's web controller.
+
 ### Dependencies:
 - Orbstack/Docker
 

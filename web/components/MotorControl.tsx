@@ -16,7 +16,12 @@ export function MotorControl({
 }: MotorControlProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [knobPosition, setKnobPosition] = useState({ x: 0, y: 0 });
-  const [vector, setVector] = useState({ x: 0, y: 0 });
+  const [vector, setVectorState] = useState({ x: 0, y: 0 });
+  const vectorRef = useRef({ x: 0, y: 0 });
+  const setVector = useCallback((value: { x: number; y: number }) => {
+    vectorRef.current = value;
+    setVectorState(value);
+  }, []);
   const [isLocked, setIsLocked] = useState(false);
   const baseRef = useRef<HTMLDivElement>(null);
 
@@ -32,13 +37,48 @@ export function MotorControl({
   );
 
   const sendEstop = useCallback((): void => {
-    if (!ros) return;
-    publishMessage("/motor_estop", { data: "estop" });
     setVector({ x: 0, y: 0 });
     setKnobPosition({ x: 0, y: 0 });
     setIsDragging(false);
     setIsLocked(false);
-  }, [ros, publishMessage]);
+    if (ros && isConnected) publishMessage("/motor_estop", { data: "estop" });
+  }, [ros, isConnected, publishMessage, setVector]);
+
+  const resetInput = useCallback(() => {
+    setVector({ x: 0, y: 0 });
+    setKnobPosition({ x: 0, y: 0 });
+    setIsDragging(false);
+    setIsLocked(false);
+  }, [setVector]);
+
+  useEffect(() => {
+    if (!isConnected) {
+      resetInput();
+      return;
+    }
+    // A held joystick must keep sending so the receiver's timeout stays fresh.
+    const timer = window.setInterval(() => {
+      const current = vectorRef.current;
+      if (current.x !== 0 || current.y !== 0) sendVector(current.x, current.y);
+    }, 100);
+    const stop = () => {
+      resetInput();
+      sendVector(0, 0);
+    };
+    const onVisibilityChange = () => {
+      if (document.hidden) stop();
+    };
+    window.addEventListener("blur", stop);
+    window.addEventListener("pagehide", stop);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("blur", stop);
+      window.removeEventListener("pagehide", stop);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      stop();
+    };
+  }, [isConnected, resetInput, sendVector]);
 
   const handleMove = useCallback(
     (clientX: number, clientY: number) => {
@@ -71,7 +111,7 @@ export function MotorControl({
         sendVector(roundedX, roundedY);
       }
     },
-    [isDragging, vector, sendVector],
+    [isDragging, vector, sendVector, setVector],
   );
 
   const handleRelease = useCallback(() => {
@@ -84,7 +124,7 @@ export function MotorControl({
         sendVector(0, 0);
       }
     }
-  }, [vector, sendVector, isLocked]);
+  }, [vector, sendVector, isLocked, setVector]);
 
   useEffect(() => {
     if (!isDragging) return;
@@ -99,16 +139,19 @@ export function MotorControl({
     window.addEventListener("mouseup", onEnd);
     window.addEventListener("touchmove", onTouchMove);
     window.addEventListener("touchend", onEnd);
+    window.addEventListener("touchcancel", onEnd);
 
     return () => {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onEnd);
       window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("touchend", onEnd);
+      window.removeEventListener("touchcancel", onEnd);
     };
   }, [isDragging, handleMove, handleRelease]);
 
   const handleStart = (clientX: number, clientY: number) => {
+    if (!isConnected) return;
     setIsDragging(true);
     if (baseRef.current) {
       const rect = baseRef.current.getBoundingClientRect();
@@ -144,6 +187,8 @@ export function MotorControl({
         {/* Joystick */}
         <div
           ref={baseRef}
+          role="group"
+          aria-label="Drive joystick"
           className={`relative rounded-full bg-gradient-to-b from-slate-700 to-slate-800 border-4 cursor-pointer select-none touch-none shadow-inner ${
             isLocked ? "border-amber-500" : "border-slate-600"
           }`}
@@ -182,12 +227,12 @@ export function MotorControl({
 
         {/* Vector display */}
         <div className="text-center font-mono text-sm bg-slate-800 px-4 py-2 rounded-lg">
-          <span className="text-slate-400">X: </span>
+          <span className="text-slate-400">Steer: </span>
           <span className="text-sky-400 inline-block">
             {vector.x.toFixed(2)}
           </span>
           <span className="text-slate-600 mx-2">|</span>
-          <span className="text-slate-400">Y: </span>
+          <span className="text-slate-400">Forward: </span>
           <span className="text-emerald-400 inline-block">
             {vector.y.toFixed(2)}
           </span>
@@ -196,6 +241,7 @@ export function MotorControl({
         {/* Lock + E-STOP Buttons */}
         <div className="flex gap-2">
           <button
+            disabled={!isConnected}
             onClick={() => {
               setIsLocked(!isLocked);
               if (isLocked) {
