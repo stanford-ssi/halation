@@ -1,12 +1,33 @@
 import ROSLIB from "roslib";
 import { useEffect, useRef, useState, useCallback } from "react";
 
-// const ROS_BRIDGE_URL = "ws://localhost:9095";
-const ROS_BRIDGE_URL = "wss://api.ssirovers.org/ws";
+const ROS_BRIDGE_URL = process.env.NEXT_PUBLIC_ROSBRIDGE_URL || "wss://api.ssirovers.org/ws";
+
+// ROSLIB 1.x does not expose rosbridge 2.x QoS options on Topic.
+// Set them at the protocol boundary for local simulation commands only.
+class LocalSimulationRos extends ROSLIB.Ros {
+  override callOnConnection(message: unknown): void {
+    if (typeof message === "object" && message !== null) {
+      const request = message as Record<string, unknown>;
+      if (
+        ["subscribe", "advertise", "publish"].includes(String(request.op)) &&
+        ["/motor_vector", "/motor_estop"].includes(String(request.topic))
+      ) {
+        super.callOnConnection({
+          ...request,
+          qos: { history: "keep_last", depth: 1, reliability: "reliable", durability: "volatile" },
+        });
+        return;
+      }
+    }
+    super.callOnConnection(message);
+  }
+}
 
 class RosPubSub {
   private ros: ROSLIB.Ros | null = null;
   private subscribers = new Map<string, ROSLIB.Topic>();
+  private publishers = new Map<string, ROSLIB.Topic>();
   private callbacks = new Map<string, Set<(msg: unknown) => void>>();
   private loggingTopics = new Set<string>();
   private onMessageCallback?: (topic: string, message: unknown) => void;
@@ -102,23 +123,26 @@ class RosPubSub {
   }
 
   publish<T>(topicName: string, message: T): void {
-    if (!this.ros) {
+    if (!this.ros?.isConnected) {
       console.error("ROS not connected");
       return;
     }
 
-    const topic = new ROSLIB.Topic({
-      ros: this.ros,
-      name: topicName,
-      messageType: "std_msgs/String",
-    });
+    let topic = this.publishers.get(topicName);
+    if (!topic) {
+      topic = new ROSLIB.Topic({
+        ros: this.ros,
+        name: topicName,
+        messageType: "std_msgs/String",
+      });
+      this.publishers.set(topicName, topic);
+    }
 
     const rosMessage = new ROSLIB.Message({
       data: JSON.stringify(message),
     });
 
     topic.publish(rosMessage);
-    console.log(`Published to ${topicName}:`, message);
   }
 
   isSubscribed(topicName: string): boolean {
@@ -138,6 +162,8 @@ class RosPubSub {
   }
 
   cleanup(): void {
+    this.publishers.forEach((topic) => topic.unadvertise());
+    this.publishers.clear();
     this.subscribers.forEach((topic) => {
       topic.unsubscribe();
     });
@@ -153,6 +179,7 @@ export interface LogEntry {
 }
 
 export interface UseRosReturn {
+  bridgeUrl: string;
   ros: ROSLIB.Ros | null;
   topics: string[];
   logs: LogEntry[];
@@ -254,13 +281,14 @@ export function useRos(maxLogSize: number = 100): UseRosReturn {
   }, []);
 
   useEffect(() => {
-    if (!rosRef.current) {
-      rosRef.current = new ROSLIB.Ros({ url: ROS_BRIDGE_URL });
-    }
-
-    const ros = rosRef.current;
+    const local = ["127.0.0.1", "localhost", "[::1]"].includes(new URL(ROS_BRIDGE_URL).hostname);
+    const ros = local ? new LocalSimulationRos({}) : new ROSLIB.Ros({});
+    rosRef.current = ros;
+    let disposed = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
     const handleConnection = () => {
+      if (disposed) return;
       console.log("Connected to rosbridge!");
       setIsConnected(true);
 
@@ -292,24 +320,36 @@ export function useRos(maxLogSize: number = 100): UseRosReturn {
     const handleClose = () => {
       console.log("Connection to rosbridge closed.");
       setIsConnected(false);
+      setTopics([]);
+      if (!disposed) {
+        reconnectTimer = setTimeout(() => ros.connect(ROS_BRIDGE_URL), 2000);
+      }
     };
 
     const handleTopicChange = () => {
+      if (disposed || !ros.isConnected) return;
       ros.getTopics((result) => {
-        setTopics(result.topics);
+        if (!disposed) setTopics(result.topics);
       });
     };
 
     ros.on("connection", handleConnection);
     ros.on("error", handleError);
     ros.on("close", handleClose);
-    ros.addListener("topic", handleTopicChange);
+    const topicTimer = setInterval(handleTopicChange, 3000);
+    ros.connect(ROS_BRIDGE_URL);
 
     return () => {
+      disposed = true;
+      clearTimeout(reconnectTimer);
+      clearInterval(topicTimer);
       ros.removeListener("connection", handleConnection);
       ros.removeListener("error", handleError);
       ros.removeListener("close", handleClose);
-      ros.removeListener("topic", handleTopicChange);
+      pubSubRef.current?.cleanup();
+      pubSubRef.current?.setRos(null);
+      ros.close();
+      if (rosRef.current === ros) rosRef.current = null;
     };
   }, [logMessage, subscribeToTopic]);
 
@@ -322,6 +362,7 @@ export function useRos(maxLogSize: number = 100): UseRosReturn {
   }, []);
 
   return {
+    bridgeUrl: ROS_BRIDGE_URL,
     ros: rosRef.current,
     topics,
     logs,

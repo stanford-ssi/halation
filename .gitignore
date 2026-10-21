@@ -20,6 +20,8 @@ COLCON_IGNORE
 AMENT_IGNORE
 
 # web station
+.env.local
+.env.*.local
 node_modules/
 .next/
 package-lock.json
