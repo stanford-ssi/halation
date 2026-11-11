@@ -2,6 +2,8 @@
 
 This starts ROS 2 Humble, rosbridge, and rosapi for the Unity simulation.
 Run the commands below from the Halation repository root with Docker running.
+Install Git, Node.js 22 or newer with npm, and Docker Desktop (or Docker Engine with Compose).
+Clone `https://github.com/stanford-ssi/halation.git` and enter the cloned directory first.
 
 ## Start
 
@@ -20,9 +22,18 @@ npm install
 npm run dev -- --hostname 127.0.0.1
 ```
 
-If `.env.local` already exists, set `NEXT_PUBLIC_ROSBRIDGE_URL=ws://127.0.0.1:9095` and restart the web server.
+If `.env.local` already exists, set both values below and restart the web server:
+
+```dotenv
+NEXT_PUBLIC_ROSBRIDGE_URL=ws://127.0.0.1:9095
+NEXT_PUBLIC_SIMULATION_MODE=true
+```
+
 Open `http://localhost:3000` and confirm the displayed bridge address is the local endpoint.
-Without this environment variable, the web app uses the existing rover endpoint.
+Without these environment variables, the web app uses the existing rover endpoint and controller behavior.
+Simulation mode enables repeated joystick commands, input clearing on focus loss or disconnection, automatic reconnection, topic polling, and simulation motor-topic QoS.
+Changing only the bridge URL does not enable those behaviors.
+ROS runs inside Docker; a separate host ROS installation and the physical rover's setup steps are not required.
 
 The Unity project is in [stanford-ssi/halation-unity-simulation](https://github.com/stanford-ssi/halation-unity-simulation).
 Open its `Assets/Scenes/RussellGlacier.unity` scene in Unity 6000.6.4f1, press Play, and press Tab in the Game view to select ROS control.

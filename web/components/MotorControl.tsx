@@ -2,6 +2,7 @@
 
 import ROSLIB from "roslib";
 import { useCallback, useRef, useState, useEffect } from "react";
+import { SIMULATION_MODE } from "@/lib/rosConfig";
 
 interface MotorControlProps {
   ros: ROSLIB.Ros | null;
@@ -30,18 +31,21 @@ export function MotorControl({
 
   const sendVector = useCallback(
     (x: number, y: number): void => {
-      if (!ros || !isConnected) return;
+      if (!ros || !isConnected || (SIMULATION_MODE && !ros.isConnected)) return;
       publishMessage("/motor_vector", { data: JSON.stringify({ x, y }) });
     },
     [ros, isConnected, publishMessage],
   );
 
   const sendEstop = useCallback((): void => {
+    if (!SIMULATION_MODE && !ros) return;
+    if (ros && (!SIMULATION_MODE || (isConnected && ros.isConnected))) {
+      publishMessage("/motor_estop", { data: "estop" });
+    }
     setVector({ x: 0, y: 0 });
     setKnobPosition({ x: 0, y: 0 });
     setIsDragging(false);
     setIsLocked(false);
-    if (ros && isConnected) publishMessage("/motor_estop", { data: "estop" });
   }, [ros, isConnected, publishMessage, setVector]);
 
   const resetInput = useCallback(() => {
@@ -52,6 +56,7 @@ export function MotorControl({
   }, [setVector]);
 
   useEffect(() => {
+    if (!SIMULATION_MODE) return;
     if (!isConnected) {
       resetInput();
       return;
@@ -139,19 +144,19 @@ export function MotorControl({
     window.addEventListener("mouseup", onEnd);
     window.addEventListener("touchmove", onTouchMove);
     window.addEventListener("touchend", onEnd);
-    window.addEventListener("touchcancel", onEnd);
+    if (SIMULATION_MODE) window.addEventListener("touchcancel", onEnd);
 
     return () => {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onEnd);
       window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("touchend", onEnd);
-      window.removeEventListener("touchcancel", onEnd);
+      if (SIMULATION_MODE) window.removeEventListener("touchcancel", onEnd);
     };
   }, [isDragging, handleMove, handleRelease]);
 
   const handleStart = (clientX: number, clientY: number) => {
-    if (!isConnected) return;
+    if (SIMULATION_MODE && !isConnected) return;
     setIsDragging(true);
     if (baseRef.current) {
       const rect = baseRef.current.getBoundingClientRect();
@@ -227,12 +232,12 @@ export function MotorControl({
 
         {/* Vector display */}
         <div className="text-center font-mono text-sm bg-slate-800 px-4 py-2 rounded-lg">
-          <span className="text-slate-400">Steer: </span>
+          <span className="text-slate-400">X: </span>
           <span className="text-sky-400 inline-block">
             {vector.x.toFixed(2)}
           </span>
           <span className="text-slate-600 mx-2">|</span>
-          <span className="text-slate-400">Forward: </span>
+          <span className="text-slate-400">Y: </span>
           <span className="text-emerald-400 inline-block">
             {vector.y.toFixed(2)}
           </span>
@@ -241,7 +246,7 @@ export function MotorControl({
         {/* Lock + E-STOP Buttons */}
         <div className="flex gap-2">
           <button
-            disabled={!isConnected}
+            disabled={SIMULATION_MODE && !isConnected}
             onClick={() => {
               setIsLocked(!isLocked);
               if (isLocked) {

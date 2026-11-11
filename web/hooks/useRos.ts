@@ -1,10 +1,10 @@
 import ROSLIB from "roslib";
 import { useEffect, useRef, useState, useCallback } from "react";
 
-const ROS_BRIDGE_URL = process.env.NEXT_PUBLIC_ROSBRIDGE_URL || "wss://api.ssirovers.org/ws";
+import { ROS_BRIDGE_URL, SIMULATION_MODE } from "@/lib/rosConfig";
 
 // ROSLIB 1.x does not expose rosbridge 2.x QoS options on Topic.
-// Set them at the protocol boundary for local simulation commands only.
+// Set them at the protocol boundary when simulation mode is enabled.
 class LocalSimulationRos extends ROSLIB.Ros {
   override callOnConnection(message: unknown): void {
     if (typeof message === "object" && message !== null) {
@@ -123,19 +123,19 @@ class RosPubSub {
   }
 
   publish<T>(topicName: string, message: T): void {
-    if (!this.ros?.isConnected) {
+    if (!this.ros || (SIMULATION_MODE && !this.ros.isConnected)) {
       console.error("ROS not connected");
       return;
     }
 
-    let topic = this.publishers.get(topicName);
+    let topic = SIMULATION_MODE ? this.publishers.get(topicName) : undefined;
     if (!topic) {
       topic = new ROSLIB.Topic({
         ros: this.ros,
         name: topicName,
         messageType: "std_msgs/String",
       });
-      this.publishers.set(topicName, topic);
+      if (SIMULATION_MODE) this.publishers.set(topicName, topic);
     }
 
     const rosMessage = new ROSLIB.Message({
@@ -143,6 +143,7 @@ class RosPubSub {
     });
 
     topic.publish(rosMessage);
+    if (!SIMULATION_MODE) console.log(`Published to ${topicName}:`, message);
   }
 
   isSubscribed(topicName: string): boolean {
@@ -281,9 +282,12 @@ export function useRos(maxLogSize: number = 100): UseRosReturn {
   }, []);
 
   useEffect(() => {
-    const local = ["127.0.0.1", "localhost", "[::1]"].includes(new URL(ROS_BRIDGE_URL).hostname);
-    const ros = local ? new LocalSimulationRos({}) : new ROSLIB.Ros({});
-    rosRef.current = ros;
+    if (!rosRef.current) {
+      rosRef.current = SIMULATION_MODE
+        ? new LocalSimulationRos({})
+        : new ROSLIB.Ros({ url: ROS_BRIDGE_URL });
+    }
+    const ros = rosRef.current;
     let disposed = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -320,14 +324,15 @@ export function useRos(maxLogSize: number = 100): UseRosReturn {
     const handleClose = () => {
       console.log("Connection to rosbridge closed.");
       setIsConnected(false);
-      setTopics([]);
-      if (!disposed) {
+      if (SIMULATION_MODE) setTopics([]);
+      if (SIMULATION_MODE && !disposed) {
+        clearTimeout(reconnectTimer);
         reconnectTimer = setTimeout(() => ros.connect(ROS_BRIDGE_URL), 2000);
       }
     };
 
     const handleTopicChange = () => {
-      if (disposed || !ros.isConnected) return;
+      if (SIMULATION_MODE && (disposed || !ros.isConnected)) return;
       ros.getTopics((result) => {
         if (!disposed) setTopics(result.topics);
       });
@@ -336,8 +341,11 @@ export function useRos(maxLogSize: number = 100): UseRosReturn {
     ros.on("connection", handleConnection);
     ros.on("error", handleError);
     ros.on("close", handleClose);
-    const topicTimer = setInterval(handleTopicChange, 3000);
-    ros.connect(ROS_BRIDGE_URL);
+    const topicTimer = SIMULATION_MODE
+      ? setInterval(handleTopicChange, 3000)
+      : undefined;
+    if (SIMULATION_MODE) ros.connect(ROS_BRIDGE_URL);
+    else ros.addListener("topic", handleTopicChange);
 
     return () => {
       disposed = true;
@@ -346,10 +354,13 @@ export function useRos(maxLogSize: number = 100): UseRosReturn {
       ros.removeListener("connection", handleConnection);
       ros.removeListener("error", handleError);
       ros.removeListener("close", handleClose);
-      pubSubRef.current?.cleanup();
-      pubSubRef.current?.setRos(null);
-      ros.close();
-      if (rosRef.current === ros) rosRef.current = null;
+      ros.removeListener("topic", handleTopicChange);
+      if (SIMULATION_MODE) {
+        pubSubRef.current?.cleanup();
+        pubSubRef.current?.setRos(null);
+        ros.close();
+        if (rosRef.current === ros) rosRef.current = null;
+      }
     };
   }, [logMessage, subscribeToTopic]);
 
